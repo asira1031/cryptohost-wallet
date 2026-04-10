@@ -15,10 +15,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "CryptoHost Wallet",
   description: "Secure CryptoHost Wallet System",
+  manifest: "/manifest.json",
   icons: {
-    icon: "/favicon.ico",
-    shortcut: "/favicon.ico",
-    apple: "/favicon.ico",
+    icon: "/cryptohost-logo.jpeg",
+    shortcut: "/cryptohost-logo.jpeg",
+    apple: "/cryptohost-logo.jpeg",
   },
 };
 

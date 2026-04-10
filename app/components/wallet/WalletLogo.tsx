@@ -3,7 +3,7 @@ export default function WalletLogo() {
     <div className="flex items-center gap-3">
       <div className="flex h-16 w-16 items-center justify-center overflow-hidden rounded-2xl border border-white/10 bg-white/5 shadow-lg">
         <img
-          src="/cryptohost-logo.png"
+          src="/cryptohost-logo.jpeg"
           alt="CryptoHost Wallet"
           className="h-full w-full object-contain p-2"
         />
