@@ -1,387 +1,723 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { QRCodeSVG } from "qrcode.react";
+import Image from "next/image";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ethers } from "ethers";
-import { supabase } from "../lib/supabase/client";
 
-type UserProfile = {
-  email?: string;
-  username?: string;
-};
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
 
-const TOKENS = [
-  { symbol: "BTC", name: "Bitcoin", balance: "0.0000" },
-  { symbol: "ETH", name: "Ethereum", balance: "0.0000" },
-  { symbol: "BNB", name: "BNB", balance: "0.0000" },
-  { symbol: "USDT", name: "Tether USD", balance: "0.0000" },
+const USDT_CONTRACT = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
+
+const usdtAbi = [
+  "function balanceOf(address owner) view returns (uint256)",
+  "function decimals() view returns (uint8)",
+  "function transfer(address to, uint256 value) returns (bool)",
 ];
 
-export default function DashboardPage() {
-  const router = useRouter();
+type WalletState = {
+  address: string;
+  shortAddress: string;
+  ethBalance: string;
+  usdtBalance: string;
+  network: string;
+  chainId: string;
+  isConnected: boolean;
+};
 
-  const [user, setUser] = useState<UserProfile | null>(null);
-  const [privateKey, setPrivateKey] = useState("");
-  const [walletAddress, setWalletAddress] = useState("");
-  const [showInstallNotice, setShowInstallNotice] = useState(true);
-  const [showPrivateKey, setShowPrivateKey] = useState(false);
-  const [copied, setCopied] = useState("");
+type ActionTab = "send" | "receive" | "buy" | "sell" | "swap";
 
-  useEffect(() => {
-    async function getUser() {
-      const { data } = await supabase.auth.getUser();
-
-      if (!data.user) {
-        router.push("/login");
-        return;
-      }
-
-      setUser({
-        email: data.user.email ?? "",
-        username: (data.user.user_metadata?.username as string) || "User",
-      });
-    }
-
-    getUser();
-  }, [router]);
-
-  useEffect(() => {
-    const savedKey = localStorage.getItem("cryptohost_wallet_private_key");
-    const savedAddress = localStorage.getItem("cryptohost_wallet_address");
-
-    if (savedKey && savedAddress) {
-      setPrivateKey(savedKey);
-      setWalletAddress(savedAddress);
-      return;
-    }
-
-    const newWallet = ethers.Wallet.createRandom();
-    localStorage.setItem("cryptohost_wallet_private_key", newWallet.privateKey);
-    localStorage.setItem("cryptohost_wallet_address", newWallet.address);
-    setPrivateKey(newWallet.privateKey);
-    setWalletAddress(newWallet.address);
-  }, []);
-
-  async function logout() {
-    await supabase.auth.signOut();
-    router.push("/login");
-  }
-
-  async function copyAddress() {
-    if (!walletAddress) return;
-    await navigator.clipboard.writeText(walletAddress);
-    setCopied("Wallet address copied.");
-    setTimeout(() => setCopied(""), 1800);
-  }
-
-  async function copyPrivateKey() {
-    if (!privateKey) return;
-    await navigator.clipboard.writeText(privateKey);
-    setCopied("Private key copied.");
-    setTimeout(() => setCopied(""), 1800);
-  }
-
-  function regenerateWallet() {
-    const newWallet = ethers.Wallet.createRandom();
-    localStorage.setItem("cryptohost_wallet_private_key", newWallet.privateKey);
-    localStorage.setItem("cryptohost_wallet_address", newWallet.address);
-    setPrivateKey(newWallet.privateKey);
-    setWalletAddress(newWallet.address);
-    setCopied("New wallet generated.");
-    setTimeout(() => setCopied(""), 1800);
-  }
-
+function WalletLogo() {
   return (
-    <main
-      style={{
-        minHeight: "100vh",
-        background: "#03113a",
-        color: "#fff",
-        padding: 24,
-        fontFamily: "Arial, sans-serif",
-      }}
-    >
-      <div style={{ maxWidth: 1180, margin: "0 auto" }}>
-        <div
-          style={{
-            background: "#13205a",
-            borderRadius: 20,
-            padding: 24,
-            border: "1px solid rgba(255,255,255,0.08)",
-            marginBottom: 20,
-          }}
-        >
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 16,
-              alignItems: "center",
-              flexWrap: "wrap",
-            }}
-          >
-            <div>
-              <div style={{ fontSize: 36, fontWeight: 800 }}>
-                CryptoHost Wallet
-              </div>
-              <div style={{ color: "rgba(255,255,255,0.75)", marginTop: 6 }}>
-                Welcome, {user?.username || user?.email || "User"}
-              </div>
-            </div>
-
-            <button onClick={logout} style={buttonSecondary}>
-              Logout
-            </button>
-          </div>
-        </div>
-
-        {showInstallNotice && (
-          <div
-            style={{
-              background: "#0f1b52",
-              borderRadius: 16,
-              padding: 16,
-              marginBottom: 20,
-              border: "1px solid rgba(255,255,255,0.08)",
-              display: "flex",
-              justifyContent: "space-between",
-              gap: 12,
-              flexWrap: "wrap",
-              alignItems: "center",
-            }}
-          >
-            <div>
-              <div style={{ fontWeight: 700 }}>Install CryptoHost Wallet</div>
-              <div style={{ color: "rgba(255,255,255,0.72)", fontSize: 14 }}>
-                Add this app to your device for faster access.
-              </div>
-            </div>
-
-            <button
-              onClick={() => setShowInstallNotice(false)}
-              style={buttonPrimary}
-            >
-              Okay
-            </button>
-          </div>
-        )}
-
-        <div
-          style={{
-            background: "#0f1b52",
-            borderRadius: 16,
-            padding: 16,
-            marginBottom: 20,
-            border: "1px solid rgba(255,255,255,0.08)",
-          }}
-        >
-          <div style={{ fontWeight: 700, marginBottom: 8 }}>Notification</div>
-          <div style={{ color: "rgba(255,255,255,0.75)" }}>
-            Your wallet dashboard is active. Login, wallet access, and QR view
-            are ready.
-          </div>
-          {copied ? (
-            <div style={{ marginTop: 10, color: "#93c5fd", fontSize: 14 }}>
-              {copied}
-            </div>
-          ) : null}
-        </div>
-
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "1.5fr 0.9fr",
-            gap: 20,
-          }}
-        >
-          <div
-            style={{
-              background: "#13205a",
-              borderRadius: 20,
-              padding: 22,
-              border: "1px solid rgba(255,255,255,0.08)",
-            }}
-          >
-            <h2 style={{ marginTop: 0 }}>My Tokens</h2>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-                gap: 14,
-                marginBottom: 18,
-              }}
-            >
-              {TOKENS.map((token) => (
-                <div
-                  key={token.symbol}
-                  style={{
-                    background: "#0b1220",
-                    borderRadius: 16,
-                    padding: 16,
-                    border: "1px solid rgba(255,255,255,0.06)",
-                  }}
-                >
-                  <div style={{ fontSize: 14, color: "rgba(255,255,255,0.68)" }}>
-                    {token.name}
-                  </div>
-                  <div style={{ fontSize: 28, fontWeight: 800, marginTop: 8 }}>
-                    {token.balance}
-                  </div>
-                  <div style={{ marginTop: 6, color: "#93c5fd" }}>
-                    {token.symbol}
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div style={infoCard}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                  marginBottom: 10,
-                }}
-              >
-                <div style={{ fontWeight: 700 }}>Wallet Address</div>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <button onClick={copyAddress} style={buttonSecondary}>
-                    Copy Address
-                  </button>
-                  <button onClick={regenerateWallet} style={buttonPrimary}>
-                    New Wallet
-                  </button>
-                </div>
-              </div>
-
-              <div style={addressBox}>
-                {walletAddress || "No wallet address saved."}
-              </div>
-            </div>
-
-            <div style={infoCard}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 12,
-                  alignItems: "center",
-                  flexWrap: "wrap",
-                  marginBottom: 10,
-                }}
-              >
-                <div style={{ fontWeight: 700 }}>Private Key</div>
-                <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-                  <button
-                    onClick={() => setShowPrivateKey((prev) => !prev)}
-                    style={buttonSecondary}
-                  >
-                    {showPrivateKey ? "Hide Private Key" : "Show Private Key"}
-                  </button>
-                  <button onClick={copyPrivateKey} style={buttonSecondary}>
-                    Copy Private Key
-                  </button>
-                </div>
-              </div>
-
-              <div style={addressBox}>
-                {!privateKey
-                  ? "No private key saved."
-                  : showPrivateKey
-                  ? privateKey
-                  : "••••••••••••••••••••••••••••••••••••••••••••••••••"}
-              </div>
-            </div>
-          </div>
-
-          <div
-            style={{
-              background: "#13205a",
-              borderRadius: 20,
-              padding: 22,
-              border: "1px solid rgba(255,255,255,0.08)",
-            }}
-          >
-            <h2 style={{ marginTop: 0 }}>Wallet QR</h2>
-
-            <div
-              style={{
-                background: "#fff",
-                borderRadius: 16,
-                minHeight: 220,
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                padding: 16,
-              }}
-            >
-              {walletAddress ? (
-                <QRCodeSVG value={walletAddress} size={180} />
-              ) : (
-                <div style={{ color: "#111827", textAlign: "center" }}>
-                  No wallet loaded yet
-                </div>
-              )}
-            </div>
-
-            <div
-              style={{
-                marginTop: 16,
-                padding: 14,
-                borderRadius: 14,
-                background: "#0b1220",
-                border: "1px solid rgba(255,255,255,0.06)",
-                wordBreak: "break-all",
-                fontSize: 13,
-              }}
-            >
-              {walletAddress || "No wallet address saved in local storage."}
-            </div>
-          </div>
-        </div>
-      </div>
-    </main>
+    <div className="relative h-12 w-12 shrink-0">
+      <Image
+        src="/cryptohost-logo.png"
+        alt="CryptoHost Logo"
+        fill
+        className="object-contain"
+      />
+    </div>
   );
 }
 
-const buttonPrimary: React.CSSProperties = {
-  padding: "12px 16px",
-  borderRadius: 12,
-  border: "none",
-  background: "#2563eb",
-  color: "#fff",
-  fontWeight: 700,
-  cursor: "pointer",
-};
+export default function DashboardPage() {
+  const [wallet, setWallet] = useState<WalletState>({
+    address: "",
+    shortAddress: "",
+    ethBalance: "0.0000",
+    usdtBalance: "0.00",
+    network: "-",
+    chainId: "-",
+    isConnected: false,
+  });
 
-const buttonSecondary: React.CSSProperties = {
-  padding: "12px 16px",
-  borderRadius: 12,
-  border: "1px solid rgba(255,255,255,0.1)",
-  background: "#0b1220",
-  color: "#fff",
-  fontWeight: 700,
-  cursor: "pointer",
-};
+  const [loading, setLoading] = useState(false);
+  const [checkingWallet, setCheckingWallet] = useState(true);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
-const infoCard: React.CSSProperties = {
-  marginTop: 16,
-  padding: 16,
-  borderRadius: 16,
-  background: "#0b1220",
-  border: "1px solid rgba(255,255,255,0.06)",
-};
+  const [recipient, setRecipient] = useState("");
+  const [ethAmount, setEthAmount] = useState("");
+  const [usdtAmount, setUsdtAmount] = useState("");
 
-const addressBox: React.CSSProperties = {
-  padding: 12,
-  borderRadius: 12,
-  background: "#07101d",
-  border: "1px solid rgba(255,255,255,0.06)",
-  color: "#fff",
-  wordBreak: "break-all",
-  fontSize: 13,
-};
+  const [sendingEth, setSendingEth] = useState(false);
+  const [sendingUsdt, setSendingUsdt] = useState(false);
+  const [lastTxHash, setLastTxHash] = useState("");
+
+  const [activeTab, setActiveTab] = useState<ActionTab>("send");
+
+  const shortenAddress = (address: string) => {
+    if (!address) return "";
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  const getNetworkLabel = (chainId: bigint | number) => {
+    const id = Number(chainId);
+
+    switch (id) {
+      case 1:
+        return "Ethereum Mainnet";
+      case 56:
+        return "BNB Smart Chain";
+      case 137:
+        return "Polygon";
+      case 11155111:
+        return "Sepolia";
+      default:
+        return `Unknown Network (${id})`;
+    }
+  };
+
+  const clearMessages = () => {
+    setError("");
+    setSuccess("");
+  };
+
+  const explorerBaseUrl = useMemo(() => {
+    if (wallet.chainId === "1") return "https://etherscan.io/tx/";
+    if (wallet.chainId === "11155111") return "https://sepolia.etherscan.io/tx/";
+    if (wallet.chainId === "56") return "https://bscscan.com/tx/";
+    if (wallet.chainId === "137") return "https://polygonscan.com/tx/";
+    return "";
+  }, [wallet.chainId]);
+
+  const readWalletData = useCallback(async () => {
+    try {
+      if (!window.ethereum) {
+        setError("Browser wallet is not installed.");
+        setWallet({
+          address: "",
+          shortAddress: "",
+          ethBalance: "0.0000",
+          usdtBalance: "0.00",
+          network: "-",
+          chainId: "-",
+          isConnected: false,
+        });
+        return;
+      }
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const accounts = await provider.listAccounts();
+
+      if (!accounts || accounts.length === 0) {
+        setWallet({
+          address: "",
+          shortAddress: "",
+          ethBalance: "0.0000",
+          usdtBalance: "0.00",
+          network: "-",
+          chainId: "-",
+          isConnected: false,
+        });
+        return;
+      }
+
+      const signer = await provider.getSigner();
+      const address = await signer.getAddress();
+      const balanceWei = await provider.getBalance(address);
+      const network = await provider.getNetwork();
+
+      let usdtBalance = "0.00";
+
+      if (Number(network.chainId) === 1) {
+        const usdtContract = new ethers.Contract(
+          USDT_CONTRACT,
+          usdtAbi,
+          provider
+        );
+
+        const usdtRaw = await usdtContract.balanceOf(address);
+        const usdtDecimals = await usdtContract.decimals();
+
+        usdtBalance = Number(
+          ethers.formatUnits(usdtRaw, usdtDecimals)
+        ).toFixed(2);
+      }
+
+      setWallet({
+        address,
+        shortAddress: shortenAddress(address),
+        ethBalance: Number(ethers.formatEther(balanceWei)).toFixed(4),
+        usdtBalance,
+        network: getNetworkLabel(network.chainId),
+        chainId: network.chainId.toString(),
+        isConnected: true,
+      });
+
+      setError("");
+    } catch (err: any) {
+      console.error("Wallet read error:", err);
+      setError(err?.message || "Failed to read wallet data.");
+    }
+  }, []);
+
+  const connectWallet = async () => {
+    try {
+      setLoading(true);
+      clearMessages();
+
+      if (!window.ethereum) {
+        setError("Browser wallet is not installed.");
+        return;
+      }
+
+      await window.ethereum.request({
+        method: "eth_requestAccounts",
+      });
+
+      await readWalletData();
+      setSuccess("Wallet connected successfully.");
+    } catch (err: any) {
+      console.error("Connect wallet error:", err);
+
+      if (err?.code === 4001) {
+        setError("Connection request was rejected.");
+      } else {
+        setError(err?.message || "Failed to connect wallet.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const disconnectUiOnly = () => {
+    setWallet({
+      address: "",
+      shortAddress: "",
+      ethBalance: "0.0000",
+      usdtBalance: "0.00",
+      network: "-",
+      chainId: "-",
+      isConnected: false,
+    });
+    setRecipient("");
+    setEthAmount("");
+    setUsdtAmount("");
+    setLastTxHash("");
+    clearMessages();
+  };
+
+  const validateRecipient = (address: string) => {
+    try {
+      return ethers.isAddress(address);
+    } catch {
+      return false;
+    }
+  };
+
+  const sendETH = async () => {
+    try {
+      clearMessages();
+      setLastTxHash("");
+
+      if (!wallet.isConnected) {
+        setError("Connect your wallet first.");
+        return;
+      }
+
+      if (!validateRecipient(recipient)) {
+        setError("Please enter a valid recipient address.");
+        return;
+      }
+
+      if (!ethAmount || Number(ethAmount) <= 0) {
+        setError("Please enter a valid ETH amount.");
+        return;
+      }
+
+      setSendingEth(true);
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+
+      const tx = await signer.sendTransaction({
+        to: recipient,
+        value: ethers.parseEther(ethAmount),
+      });
+
+      setLastTxHash(tx.hash);
+      setSuccess(`ETH transaction submitted: ${tx.hash}`);
+
+      await tx.wait();
+      await readWalletData();
+      setEthAmount("");
+    } catch (err: any) {
+      console.error("ETH send error:", err);
+      setError(err?.reason || err?.message || "Failed to send ETH.");
+    } finally {
+      setSendingEth(false);
+    }
+  };
+
+  const sendUSDT = async () => {
+    try {
+      clearMessages();
+      setLastTxHash("");
+
+      if (!wallet.isConnected) {
+        setError("Connect your wallet first.");
+        return;
+      }
+
+      if (wallet.chainId !== "1") {
+        setError("USDT send is set for Ethereum Mainnet only.");
+        return;
+      }
+
+      if (!validateRecipient(recipient)) {
+        setError("Please enter a valid recipient address.");
+        return;
+      }
+
+      if (!usdtAmount || Number(usdtAmount) <= 0) {
+        setError("Please enter a valid USDT amount.");
+        return;
+      }
+
+      setSendingUsdt(true);
+
+      const provider = new ethers.BrowserProvider(window.ethereum);
+      const signer = await provider.getSigner();
+
+      const usdtWithSigner = new ethers.Contract(
+        USDT_CONTRACT,
+        usdtAbi,
+        signer
+      );
+
+      const decimals = await usdtWithSigner.decimals();
+      const amount = ethers.parseUnits(usdtAmount, decimals);
+
+      const tx = await usdtWithSigner.transfer(recipient, amount);
+
+      setLastTxHash(tx.hash);
+      setSuccess(`USDT transaction submitted: ${tx.hash}`);
+
+      await tx.wait();
+      await readWalletData();
+      setUsdtAmount("");
+    } catch (err: any) {
+      console.error("USDT send error:", err);
+      setError(err?.reason || err?.message || "Failed to send USDT.");
+    } finally {
+      setSendingUsdt(false);
+    }
+  };
+
+  useEffect(() => {
+    const checkWallet = async () => {
+      setCheckingWallet(true);
+      await readWalletData();
+      setCheckingWallet(false);
+    };
+
+    checkWallet();
+
+    if (window.ethereum) {
+      const handleAccountsChanged = async (accounts: string[]) => {
+        if (!accounts || accounts.length === 0) {
+          disconnectUiOnly();
+          return;
+        }
+        await readWalletData();
+      };
+
+      const handleChainChanged = async () => {
+        await readWalletData();
+      };
+
+      window.ethereum.on("accountsChanged", handleAccountsChanged);
+      window.ethereum.on("chainChanged", handleChainChanged);
+
+      return () => {
+        if (window.ethereum?.removeListener) {
+          window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
+          window.ethereum.removeListener("chainChanged", handleChainChanged);
+        }
+      };
+    }
+  }, [readWalletData]);
+
+  const actionBtnBase =
+    "rounded-2xl px-4 py-3 text-sm font-semibold transition border";
+  const activeAction =
+    "border-cyan-400/40 bg-cyan-500/15 text-cyan-200";
+  const inactiveAction =
+    "border-white/10 bg-white/5 text-white/70 hover:bg-white/10";
+
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-[#08152f] via-[#071229] to-[#030814] px-4 py-8 text-white md:px-8">
+      <div className="mx-auto max-w-6xl">
+        <div className="mb-8 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-4">
+              <WalletLogo />
+
+              <div>
+                <p className="text-sm uppercase tracking-[0.25em] text-cyan-300/80">
+                  CryptoHost Wallet
+                </p>
+                <h1 className="mt-1 text-3xl font-bold md:text-4xl">
+                  Secure Web3 Dashboard
+                </h1>
+                <p className="mt-1 text-sm text-white/70 md:text-base">
+                  Connect your wallet to manage ETH and USDT in one place.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-3">
+              {!wallet.isConnected ? (
+                <button
+                  onClick={connectWallet}
+                  disabled={loading || checkingWallet}
+                  className="rounded-2xl bg-cyan-500 px-5 py-3 text-sm font-semibold text-[#04101f] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {loading ? "Connecting..." : "Connect Wallet"}
+                </button>
+              ) : (
+                <>
+                  <button
+                    onClick={readWalletData}
+                    disabled={loading}
+                    className="rounded-2xl border border-white/15 bg-white/10 px-5 py-3 text-sm font-semibold transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    Refresh
+                  </button>
+
+                  <button
+                    onClick={disconnectUiOnly}
+                    className="rounded-2xl border border-red-400/20 bg-red-500/10 px-5 py-3 text-sm font-semibold text-red-200 transition hover:bg-red-500/20"
+                  >
+                    Disconnect
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+
+        {error && (
+          <div className="mb-6 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-200">
+            {error}
+          </div>
+        )}
+
+        {success && (
+          <div className="mb-6 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-200 break-all">
+            {success}
+          </div>
+        )}
+
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-5">
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl backdrop-blur">
+            <p className="text-sm text-white/60">Connection Status</p>
+            <h2 className="mt-3 text-2xl font-bold">
+              {checkingWallet
+                ? "Checking..."
+                : wallet.isConnected
+                ? "Connected"
+                : "Not Connected"}
+            </h2>
+            <p className="mt-2 text-sm text-white/60">Wallet session status</p>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl backdrop-blur">
+            <p className="text-sm text-white/60">Wallet Address</p>
+            <h2 className="mt-3 break-all text-xl font-bold">
+              {wallet.isConnected ? wallet.shortAddress : "-"}
+            </h2>
+            <p className="mt-2 break-all text-xs text-white/60">
+              {wallet.isConnected ? wallet.address : "No wallet connected"}
+            </p>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl backdrop-blur">
+            <p className="text-sm text-white/60">ETH Balance</p>
+            <h2 className="mt-3 text-2xl font-bold">
+              {wallet.isConnected ? wallet.ethBalance : "0.0000"} ETH
+            </h2>
+            <p className="mt-2 text-sm text-white/60">Live wallet balance</p>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl backdrop-blur">
+            <p className="text-sm text-white/60">USDT Balance</p>
+            <h2 className="mt-3 text-2xl font-bold">
+              {wallet.isConnected ? wallet.usdtBalance : "0.00"} USDT
+            </h2>
+            <p className="mt-2 text-sm text-white/60">Ethereum Mainnet only</p>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-5 shadow-xl backdrop-blur">
+            <p className="text-sm text-white/60">Network</p>
+            <h2 className="mt-3 text-2xl font-bold">
+              {wallet.isConnected ? wallet.network : "-"}
+            </h2>
+            <p className="mt-2 text-sm text-white/60">
+              Chain ID: {wallet.isConnected ? wallet.chainId : "-"}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-8 grid gap-6 lg:grid-cols-[1.1fr_1fr]">
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
+            <h3 className="text-xl font-bold">Wallet Overview</h3>
+
+            <div className="mt-5 grid gap-4">
+              <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <p className="text-sm text-white/60">Account</p>
+                <p className="mt-1 break-all text-sm font-medium text-white">
+                  {wallet.isConnected ? wallet.address : "No connected account"}
+                </p>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-sm text-white/60">Blockchain</p>
+                  <p className="mt-1 text-sm font-medium text-white">
+                    {wallet.isConnected ? wallet.network : "Waiting for connection"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-sm text-white/60">Receive Address</p>
+                  <p className="mt-1 text-sm font-medium text-white">
+                    {wallet.isConnected ? wallet.shortAddress : "-"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-sm text-white/60">Available ETH</p>
+                  <p className="mt-1 text-sm font-medium text-white">
+                    {wallet.isConnected ? `${wallet.ethBalance} ETH` : "0.0000 ETH"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-sm text-white/60">Available USDT</p>
+                  <p className="mt-1 text-sm font-medium text-white">
+                    {wallet.isConnected ? `${wallet.usdtBalance} USDT` : "0.00 USDT"}
+                  </p>
+                </div>
+              </div>
+
+              {lastTxHash && explorerBaseUrl && (
+                <a
+                  href={`${explorerBaseUrl}${lastTxHash}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-2xl border border-emerald-400/15 bg-emerald-500/10 p-4 text-sm text-emerald-200 break-all hover:bg-emerald-500/15"
+                >
+                  View last transaction on explorer: {lastTxHash}
+                </a>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
+            <div className="flex flex-wrap gap-3">
+              <button
+                onClick={() => setActiveTab("send")}
+                className={`${actionBtnBase} ${activeTab === "send" ? activeAction : inactiveAction}`}
+              >
+                Send
+              </button>
+              <button
+                onClick={() => setActiveTab("receive")}
+                className={`${actionBtnBase} ${activeTab === "receive" ? activeAction : inactiveAction}`}
+              >
+                Receive
+              </button>
+              <button
+                onClick={() => setActiveTab("buy")}
+                className={`${actionBtnBase} ${activeTab === "buy" ? activeAction : inactiveAction}`}
+              >
+                Buy
+              </button>
+              <button
+                onClick={() => setActiveTab("sell")}
+                className={`${actionBtnBase} ${activeTab === "sell" ? activeAction : inactiveAction}`}
+              >
+                Sell
+              </button>
+              <button
+                onClick={() => setActiveTab("swap")}
+                className={`${actionBtnBase} ${activeTab === "swap" ? activeAction : inactiveAction}`}
+              >
+                Swap
+              </button>
+            </div>
+
+            {activeTab === "send" && (
+              <div className="mt-5 space-y-4">
+                <h3 className="text-xl font-bold">Send Assets</h3>
+
+                <div>
+                  <label className="mb-2 block text-sm text-white/70">
+                    Recipient Address
+                  </label>
+                  <input
+                    type="text"
+                    value={recipient}
+                    onChange={(e) => setRecipient(e.target.value)}
+                    placeholder="0x..."
+                    className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-cyan-400/40"
+                  />
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm text-white/70">
+                    ETH Amount
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={ethAmount}
+                    onChange={(e) => setEthAmount(e.target.value)}
+                    placeholder="0.01"
+                    className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-cyan-400/40"
+                  />
+                </div>
+
+                <button
+                  onClick={sendETH}
+                  disabled={!wallet.isConnected || sendingEth}
+                  className="w-full rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-4 text-sm font-semibold text-[#04101f] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {sendingEth ? "Sending ETH..." : "Send ETH"}
+                </button>
+
+                <div>
+                  <label className="mb-2 block text-sm text-white/70">
+                    USDT Amount
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0"
+                    value={usdtAmount}
+                    onChange={(e) => setUsdtAmount(e.target.value)}
+                    placeholder="10"
+                    className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-cyan-400/40"
+                  />
+                </div>
+
+                <button
+                  onClick={sendUSDT}
+                  disabled={!wallet.isConnected || sendingUsdt}
+                  className="w-full rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-sm font-semibold transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {sendingUsdt ? "Sending USDT..." : "Send USDT"}
+                </button>
+
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/70">
+                  ETH sends need enough ETH balance. USDT sends also need ETH for gas.
+                </div>
+              </div>
+            )}
+
+            {activeTab === "receive" && (
+              <div className="mt-5 space-y-4">
+                <h3 className="text-xl font-bold">Receive</h3>
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-sm text-white/60">Your wallet address</p>
+                  <p className="mt-2 break-all text-sm text-white">
+                    {wallet.isConnected ? wallet.address : "Connect wallet first"}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-cyan-400/15 bg-cyan-500/10 p-4 text-sm text-cyan-100">
+                  Use this address to receive ETH or ERC-20 assets on the current network.
+                </div>
+              </div>
+            )}
+
+            {activeTab === "buy" && (
+              <div className="mt-5 space-y-4">
+                <h3 className="text-xl font-bold">Buy</h3>
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/70">
+                  Buy flow placeholder. Next step natin dito puwede natin ilagay ang
+                  direct funding links or on-ramp integration.
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button className="rounded-2xl border border-white/10 bg-white/10 px-4 py-4 text-sm font-semibold hover:bg-white/15">
+                    Buy ETH
+                  </button>
+                  <button className="rounded-2xl border border-white/10 bg-white/10 px-4 py-4 text-sm font-semibold hover:bg-white/15">
+                    Buy USDT
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "sell" && (
+              <div className="mt-5 space-y-4">
+                <h3 className="text-xl font-bold">Sell</h3>
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/70">
+                  Sell flow placeholder. Dito natin puwedeng ilagay later ang off-ramp or
+                  exchange redirection.
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <button className="rounded-2xl border border-white/10 bg-white/10 px-4 py-4 text-sm font-semibold hover:bg-white/15">
+                    Sell ETH
+                  </button>
+                  <button className="rounded-2xl border border-white/10 bg-white/10 px-4 py-4 text-sm font-semibold hover:bg-white/15">
+                    Sell USDT
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {activeTab === "swap" && (
+              <div className="mt-5 space-y-4">
+                <h3 className="text-xl font-bold">Swap</h3>
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4 text-sm text-white/70">
+                  Swap module placeholder. Next upgrade natin dito ang token-to-token swap UI.
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <p className="text-sm text-white/60">From</p>
+                    <p className="mt-2 text-white">ETH</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                    <p className="text-sm text-white/60">To</p>
+                    <p className="mt-2 text-white">USDT</p>
+                  </div>
+                </div>
+                <button className="w-full rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-sm font-semibold hover:bg-white/15">
+                  Open Swap Flow
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
