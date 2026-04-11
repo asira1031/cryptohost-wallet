@@ -62,9 +62,10 @@ export default function LoginPage() {
           <Link href="/register" style={linkStyle}>
             Create account
           </Link>
-          <Link href="/reset-password" style={linkStyle}>
-            Forgot password?
-          </Link>
+          <span style={{ ...linkStyle, opacity: 0.6, cursor: "not-allowed" }}>
+  Forgot password? (coming soon)
+</span>
+          
         </div>
       </div>
     </main>
