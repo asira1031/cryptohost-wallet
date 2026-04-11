@@ -14,6 +14,14 @@ export default function CreateWalletPage() {
   function handleCreateWallet() {
     try {
       const wallet = Wallet.createRandom();
+      localStorage.setItem(
+  "cryptohost_wallet",
+  JSON.stringify({
+    address: wallet.address,
+    privateKey: wallet.privateKey,
+    mnemonic: wallet.mnemonic?.phrase || wallet.mnemonic
+  })
+);
 
       const phrase = wallet.mnemonic?.phrase || "";
 

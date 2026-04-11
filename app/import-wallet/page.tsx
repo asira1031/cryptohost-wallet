@@ -13,6 +13,14 @@ export default function ImportWalletPage() {
   function handleImportFromSeed() {
     try {
       const wallet = Wallet.fromPhrase(seedPhrase.trim());
+      localStorage.setItem(
+  "cryptohost_wallet",
+  JSON.stringify({
+    address: wallet.address,
+    privateKey: wallet.privateKey,
+    mnemonic: wallet.mnemonic?.phrase || seedPhrase
+  })
+);
 
       saveWallet({
         address: wallet.address,

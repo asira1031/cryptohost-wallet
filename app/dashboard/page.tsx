@@ -427,7 +427,7 @@ const receiveAddress =
     useEffect(() => {
   try {
     const raw =
-      localStorage.getItem("cw_wallet") ||
+      localStorage.getItem("cryptohost_wallet");
       localStorage.getItem("cryptohost_wallet") ||
       localStorage.getItem("wallet_data");
 
@@ -439,7 +439,7 @@ const receiveAddress =
     const parsed = JSON.parse(raw);
     setLocalWallet(parsed);
   } catch (error) {
-    console.error("Failed to load local CW wallet:", error);
+    console.error("Failed to load local Cryptohost_ wallet:", error);
     setLocalWallet(null);
   }
 }, []);
