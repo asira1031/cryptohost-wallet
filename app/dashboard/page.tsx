@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { ethers } from "ethers";
 
 declare global {
@@ -22,7 +22,7 @@ const rpcUrl =
   process.env.NEXT_PUBLIC_ETH_RPC_URL ||
   "https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY_HERE";
 
-const provider = useMemo(() => new ethers.JsonRpcProvider(rpcUrl), [rpcUrl]);
+const provider = new ethers.JsonRpcProvider(rpcUrl);
 
 const usdtAddress = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
 
