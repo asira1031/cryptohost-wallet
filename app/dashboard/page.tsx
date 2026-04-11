@@ -1,6 +1,7 @@
 "use client";
-import Link from "next/link";
+
 import Image from "next/image";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ethers } from "ethers";
 
@@ -105,35 +106,31 @@ export default function DashboardPage() {
     return "";
   }, [wallet.chainId]);
 
+  const resetWalletState = () => {
+    setWallet({
+      address: "",
+      shortAddress: "",
+      ethBalance: "0.0000",
+      usdtBalance: "0.00",
+      network: "-",
+      chainId: "-",
+      isConnected: false,
+    });
+  };
+
   const readWalletData = useCallback(async () => {
     try {
       if (!window.ethereum) {
         setError("Browser wallet is not installed.");
-        setWallet({
-          address: "",
-          shortAddress: "",
-          ethBalance: "0.0000",
-          usdtBalance: "0.00",
-          network: "-",
-          chainId: "-",
-          isConnected: false,
-        });
+        resetWalletState();
         return;
       }
 
       const provider = new ethers.BrowserProvider(window.ethereum);
-      const accounts = await provider.listAccounts();
+      const accounts = await provider.send("eth_accounts", []);
 
       if (!accounts || accounts.length === 0) {
-        setWallet({
-          address: "",
-          shortAddress: "",
-          ethBalance: "0.0000",
-          usdtBalance: "0.00",
-          network: "-",
-          chainId: "-",
-          isConnected: false,
-        });
+        resetWalletState();
         return;
       }
 
@@ -173,6 +170,7 @@ export default function DashboardPage() {
     } catch (err: any) {
       console.error("Wallet read error:", err);
       setError(err?.message || "Failed to read wallet data.");
+      resetWalletState();
     }
   }, []);
 
@@ -180,9 +178,10 @@ export default function DashboardPage() {
     try {
       setLoading(true);
       clearMessages();
+      setLastTxHash("");
 
       if (!window.ethereum) {
-        setError("Browser wallet is not installed.");
+        setError("Please install Trust Wallet extension or MetaMask.");
         return;
       }
 
@@ -206,20 +205,13 @@ export default function DashboardPage() {
   };
 
   const disconnectUiOnly = () => {
-    setWallet({
-      address: "",
-      shortAddress: "",
-      ethBalance: "0.0000",
-      usdtBalance: "0.00",
-      network: "-",
-      chainId: "-",
-      isConnected: false,
-    });
+    resetWalletState();
     setRecipient("");
     setEthAmount("");
     setUsdtAmount("");
     setLastTxHash("");
     clearMessages();
+    setSuccess("Disconnected from dashboard view.");
   };
 
   const validateRecipient = (address: string) => {
@@ -341,7 +333,7 @@ export default function DashboardPage() {
     if (window.ethereum) {
       const handleAccountsChanged = async (accounts: string[]) => {
         if (!accounts || accounts.length === 0) {
-          disconnectUiOnly();
+          resetWalletState();
           return;
         }
         await readWalletData();
@@ -351,14 +343,12 @@ export default function DashboardPage() {
         await readWalletData();
       };
 
-      window.ethereum.on("accountsChanged", handleAccountsChanged);
-      window.ethereum.on("chainChanged", handleChainChanged);
+      window.ethereum.on?.("accountsChanged", handleAccountsChanged);
+      window.ethereum.on?.("chainChanged", handleChainChanged);
 
       return () => {
-        if (window.ethereum?.removeListener) {
-          window.ethereum.removeListener("accountsChanged", handleAccountsChanged);
-          window.ethereum.removeListener("chainChanged", handleChainChanged);
-        }
+        window.ethereum?.removeListener?.("accountsChanged", handleAccountsChanged);
+        window.ethereum?.removeListener?.("chainChanged", handleChainChanged);
       };
     }
   }, [readWalletData]);
@@ -386,7 +376,7 @@ export default function DashboardPage() {
                   Secure Web3 Dashboard
                 </h1>
                 <p className="mt-2 text-sm text-white/70 md:text-base">
-                  Connect your wallet to manage ETH and USDT in one place.
+                  Connect your browser wallet to manage ETH and USDT in one place.
                 </p>
               </div>
             </div>
@@ -573,30 +563,28 @@ export default function DashboardPage() {
               >
                 Swap
               </button>
+
+              <Link
+                href="/create-wallet"
+                className="rounded-2xl px-4 py-3 text-sm font-semibold transition border border-emerald-400/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15"
+              >
+                Create Wallet
+              </Link>
+
+              <Link
+                href="/import-wallet"
+                className="rounded-2xl px-4 py-3 text-sm font-semibold transition border border-amber-400/30 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15"
+              >
+                Import Wallet
+              </Link>
+
+              <Link
+                href="/my-wallet"
+                className="rounded-2xl px-4 py-3 text-sm font-semibold transition border border-purple-400/30 bg-purple-500/10 text-purple-200 hover:bg-purple-500/15"
+              >
+                My Wallet
+              </Link>
             </div>
-
-            <Link
-  href="/create-wallet"
-  className="rounded-2xl px-4 py-3 text-sm font-semibold transition border border-emerald-400/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15"
->
-  Create Wallet
-</Link>
-
-<Link
-  href="/import-wallet"
-  className="rounded-2xl px-4 py-3 text-sm font-semibold transition border border-amber-400/30 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15"
->
-  Import Wallet
-</Link>
-
-<Link
-  href="/my-wallet"
-  className="rounded-2xl px-4 py-3 text-sm font-semibold transition border border-purple-400/30 bg-purple-500/10 text-purple-200 hover:bg-purple-500/15"
->
-  My Wallet
-</Link>
-
-            
 
             {activeTab === "send" && (
               <div className="mt-5 space-y-4">
@@ -625,7 +613,7 @@ export default function DashboardPage() {
                     min="0"
                     value={ethAmount}
                     onChange={(e) => setEthAmount(e.target.value)}
-                    placeholder="0.01"
+                    placeholder="0.001"
                     className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-cyan-400/40"
                   />
                 </div>
