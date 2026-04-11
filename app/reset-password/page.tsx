@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase/client";
 import { useRouter } from "next/navigation";
 
@@ -10,6 +10,23 @@ export default function ResetPasswordPage() {
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+
+      if (!session) {
+        setMessage("Reset session not found. Please request a new password reset link.");
+      } else {
+        setReady(true);
+      }
+    };
+
+    checkSession();
+  }, []);
 
   async function handleUpdatePassword() {
     if (!password || !confirmPassword) {
@@ -51,6 +68,7 @@ export default function ResetPasswordPage() {
           placeholder="New Password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          disabled={!ready || loading}
         />
 
         <input
@@ -59,12 +77,17 @@ export default function ResetPasswordPage() {
           placeholder="Confirm New Password"
           value={confirmPassword}
           onChange={(e) => setConfirmPassword(e.target.value)}
+          disabled={!ready || loading}
         />
 
         <button
-          style={buttonStyle}
+          style={{
+            ...buttonStyle,
+            opacity: !ready || loading ? 0.7 : 1,
+            cursor: !ready || loading ? "not-allowed" : "pointer",
+          }}
           onClick={handleUpdatePassword}
-          disabled={loading}
+          disabled={!ready || loading}
         >
           {loading ? "Updating..." : "Update Password"}
         </button>
@@ -122,7 +145,6 @@ const buttonStyle: React.CSSProperties = {
   background: "#2563eb",
   color: "#fff",
   fontWeight: 700,
-  cursor: "pointer",
 };
 
 const messageStyle: React.CSSProperties = {

@@ -26,10 +26,11 @@ export default function RegisterPage() {
     setLoading(true);
     setMessage("");
 
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        emailRedirectTo: "https://cryptohost-wallet-dw3e.vercel.app/login",
         data: {
           username,
         },
@@ -39,7 +40,11 @@ export default function RegisterPage() {
     if (error) {
       setMessage(error.message);
     } else {
-      setMessage("Registration successful. Check your email to confirm.");
+      if (data.user && data.session) {
+        setMessage("Registration successful. You can now log in.");
+      } else {
+        setMessage("Registration successful. Check your email to confirm.");
+      }
     }
 
     setLoading(false);

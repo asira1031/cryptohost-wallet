@@ -1,5 +1,5 @@
 "use client";
-
+import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ethers } from "ethers";
@@ -32,12 +32,13 @@ type ActionTab = "send" | "receive" | "buy" | "sell" | "swap";
 
 function WalletLogo() {
   return (
-    <div className="relative h-12 w-12 shrink-0">
+    <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-2xl border border-white/10 bg-white/5 p-1 shadow-lg md:h-20 md:w-20">
       <Image
-        src="/cryptohost-logo.png"
+        src="/cryptohost-logo.jpeg"
         alt="CryptoHost Logo"
         fill
-        className="object-contain"
+        className="object-contain p-1"
+        priority
       />
     </div>
   );
@@ -373,18 +374,18 @@ export default function DashboardPage() {
     <div className="min-h-screen bg-gradient-to-b from-[#08152f] via-[#071229] to-[#030814] px-4 py-8 text-white md:px-8">
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <div className="flex items-center gap-4">
+          <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div className="flex items-center gap-4 md:gap-5">
               <WalletLogo />
 
               <div>
                 <p className="text-sm uppercase tracking-[0.25em] text-cyan-300/80">
                   CryptoHost Wallet
                 </p>
-                <h1 className="mt-1 text-3xl font-bold md:text-4xl">
+                <h1 className="mt-1 text-4xl font-bold leading-tight md:text-5xl">
                   Secure Web3 Dashboard
                 </h1>
-                <p className="mt-1 text-sm text-white/70 md:text-base">
+                <p className="mt-2 text-sm text-white/70 md:text-base">
                   Connect your wallet to manage ETH and USDT in one place.
                 </p>
               </div>
@@ -573,6 +574,29 @@ export default function DashboardPage() {
                 Swap
               </button>
             </div>
+
+            <Link
+  href="/create-wallet"
+  className="rounded-2xl px-4 py-3 text-sm font-semibold transition border border-emerald-400/30 bg-emerald-500/10 text-emerald-200 hover:bg-emerald-500/15"
+>
+  Create Wallet
+</Link>
+
+<Link
+  href="/import-wallet"
+  className="rounded-2xl px-4 py-3 text-sm font-semibold transition border border-amber-400/30 bg-amber-500/10 text-amber-200 hover:bg-amber-500/15"
+>
+  Import Wallet
+</Link>
+
+<Link
+  href="/my-wallet"
+  className="rounded-2xl px-4 py-3 text-sm font-semibold transition border border-purple-400/30 bg-purple-500/10 text-purple-200 hover:bg-purple-500/15"
+>
+  My Wallet
+</Link>
+
+            
 
             {activeTab === "send" && (
               <div className="mt-5 space-y-4">

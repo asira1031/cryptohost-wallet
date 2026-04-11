@@ -17,7 +17,7 @@ export default function LoginPage() {
     setLoading(true);
     setMessage("");
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
@@ -62,7 +62,7 @@ export default function LoginPage() {
           <Link href="/register" style={linkStyle}>
             Create account
           </Link>
-          <Link href="/forgot-password" style={linkStyle}>
+          <Link href="/reset-password" style={linkStyle}>
             Forgot password?
           </Link>
         </div>

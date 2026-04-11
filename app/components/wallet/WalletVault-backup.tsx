@@ -545,15 +545,42 @@ export default function WalletVault() {
   ))}
 </div>
 
+
 {/* QUICK ACTION BUTTONS */}
 <div className="flex gap-3 mt-4">
-  <button className="flex-1 bg-blue-500 py-3 rounded-xl text-white font-semibold">
+  <button
+    type="button"
+    onClick={() =>
+      document
+        .getElementById("send-section")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
+    className="flex-1 bg-blue-500 py-3 rounded-xl text-white font-semibold hover:scale-105 transition"
+  >
     Send
   </button>
-  <button className="flex-1 bg-green-500 py-3 rounded-xl text-white font-semibold">
+
+  <button
+    type="button"
+    onClick={() =>
+      document
+        .getElementById("receive-section")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
+    className="flex-1 bg-green-500 py-3 rounded-xl text-white font-semibold hover:scale-105 transition"
+  >
     Receive
   </button>
-  <button className="flex-1 bg-purple-500 py-3 rounded-xl text-white font-semibold">
+
+  <button
+    type="button"
+    onClick={() =>
+      document
+        .getElementById("swap-section")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" })
+    }
+    className="flex-1 bg-purple-500 py-3 rounded-xl text-white font-semibold hover:scale-105 transition"
+  >
     Swap
   </button>
 </div>
