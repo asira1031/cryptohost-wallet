@@ -47,6 +47,7 @@ function WalletLogo() {
 
 export default function DashboardPage() {
   const [wallet, setWallet] = useState<WalletState>({
+
     address: "",
     shortAddress: "",
     ethBalance: "0.0000",
@@ -55,7 +56,7 @@ export default function DashboardPage() {
     chainId: "-",
     isConnected: false,
   });
-
+  const [txHash, setTxHash] = useState("");
   const [loading, setLoading] = useState(false);
   const [checkingWallet, setCheckingWallet] = useState(true);
   const [error, setError] = useState("");
@@ -492,6 +493,28 @@ export default function DashboardPage() {
                   <p className="mt-1 text-sm font-medium text-white">
                     {wallet.isConnected ? wallet.network : "Waiting for connection"}
                   </p>
+
+                  {txHash && (
+  <div className="mt-4 rounded-xl bg-emerald-500/10 border border-emerald-500/20 p-4">
+    <p className="text-emerald-400 font-semibold">
+      Transaction Successful
+    </p>
+
+    <p className="text-xs text-gray-400 mt-1 break-all">
+      {txHash}
+    </p>
+
+    <a
+      href={`https://etherscan.io/tx/${txHash}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="text-emerald-400 text-sm underline mt-2 inline-block"
+    >
+      View on Etherscan ↗
+    </a>
+  </div>
+)}
+
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
