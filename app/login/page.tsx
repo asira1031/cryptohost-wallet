@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { supabase } from "../lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -8,6 +9,7 @@ import Link from "next/link";
 export default function LoginPage() {
   const router = useRouter();
 
+  const [showLogin, setShowLogin] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -17,13 +19,13 @@ export default function LoginPage() {
     setLoading(true);
     setMessage("");
 
-    const { data, error } = await supabase.auth.signInWithPassword({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
-      setMessage(error.message);
+      setMessage("Invalid login credentials");
     } else {
       router.push("/dashboard");
     }
@@ -33,41 +35,65 @@ export default function LoginPage() {
 
   return (
     <main style={pageStyle}>
-      <div style={cardStyle}>
-        <h1 style={titleStyle}>CryptoHost Wallet Login</h1>
-        <p style={subStyle}>Access your secure wallet dashboard.</p>
-
-        <input
-          style={inputStyle}
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-
-        <input
-          type="password"
-          style={inputStyle}
-          placeholder="Password"
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-        />
-
-        <button style={buttonStyle} onClick={handleLogin} disabled={loading}>
-          {loading ? "Logging in..." : "Login"}
+      {!showLogin ? (
+        <button
+          onClick={() => setShowLogin(true)}
+          style={logoButtonStyle}
+          aria-label="Open login"
+        >
+          <div style={logoWrapStyle}>
+            <Image
+              src="/cryptohost-logo.jpeg"
+              alt="CryptoHost Logo"
+              fill
+              style={{ objectFit: "contain" }}
+              priority
+            />
+          </div>
+          <p style={logoTextStyle}>CryptoHost Wallet</p>
+          <p style={logoSubTextStyle}>Tap logo to continue</p>
         </button>
+      ) : (
+        <div style={cardStyle}>
+          <button onClick={() => setShowLogin(false)} style={backButtonStyle}>
+            ← Back
+          </button>
 
-        {message ? <p style={messageStyle}>{message}</p> : null}
+          <h1 style={titleStyle}>CryptoHost Wallet Login</h1>
+          <p style={subStyle}>Access your secure wallet dashboard.</p>
 
-        <div style={{ marginTop: 18, display: "grid", gap: 8 }}>
-          <Link href="/register" style={linkStyle}>
-            Create account
-          </Link>
-          <span style={{ ...linkStyle, opacity: 0.6, cursor: "not-allowed" }}>
-  Forgot password? (coming soon)
-</span>
-          
+          <input
+            style={inputStyle}
+            placeholder="Email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+
+          <input
+            type="password"
+            style={inputStyle}
+            placeholder="Password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+
+          <button style={buttonStyle} onClick={handleLogin} disabled={loading}>
+            {loading ? "Logging in..." : "Login"}
+          </button>
+
+          {message ? <p style={messageStyle}>{message}</p> : null}
+
+          <div style={{ marginTop: 18, display: "grid", gap: 8 }}>
+            <Link href="/register" style={linkStyle}>
+              Create account
+            </Link>
+
+            <span style={{ ...linkStyle, opacity: 0.6, cursor: "not-allowed" }}>
+              Forgot password? (coming soon)
+            </span>
+          </div>
         </div>
-      </div>
+      )}
     </main>
   );
 }
@@ -81,6 +107,41 @@ const pageStyle: React.CSSProperties = {
   padding: 24,
 };
 
+const logoButtonStyle: React.CSSProperties = {
+  background: "transparent",
+  border: "none",
+  display: "flex",
+  flexDirection: "column",
+  alignItems: "center",
+  justifyContent: "center",
+  cursor: "pointer",
+};
+
+const logoWrapStyle: React.CSSProperties = {
+  position: "relative",
+  width: 140,
+  height: 140,
+  borderRadius: 24,
+  overflow: "hidden",
+  background: "rgba(255,255,255,0.04)",
+  border: "1px solid rgba(255,255,255,0.08)",
+  boxShadow: "0 18px 40px rgba(0,0,0,0.28)",
+};
+
+const logoTextStyle: React.CSSProperties = {
+  marginTop: 18,
+  marginBottom: 6,
+  fontSize: 24,
+  fontWeight: 700,
+  color: "#ffffff",
+};
+
+const logoSubTextStyle: React.CSSProperties = {
+  margin: 0,
+  fontSize: 14,
+  color: "rgba(255,255,255,0.75)",
+};
+
 const cardStyle: React.CSSProperties = {
   width: "100%",
   maxWidth: 440,
@@ -89,6 +150,16 @@ const cardStyle: React.CSSProperties = {
   padding: 28,
   color: "#fff",
   border: "1px solid rgba(255,255,255,0.08)",
+};
+
+const backButtonStyle: React.CSSProperties = {
+  marginBottom: 12,
+  background: "transparent",
+  border: "none",
+  color: "#93c5fd",
+  cursor: "pointer",
+  padding: 0,
+  fontSize: 14,
 };
 
 const titleStyle: React.CSSProperties = {
