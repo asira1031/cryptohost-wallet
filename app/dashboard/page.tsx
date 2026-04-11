@@ -18,6 +18,19 @@ const usdtAbi = [
   "function decimals() view returns (uint8)",
   "function transfer(address to, uint256 value) returns (bool)",
 ];
+const rpcUrl =
+  process.env.NEXT_PUBLIC_ETH_RPC_URL ||
+  "https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY_HERE";
+
+const provider = useMemo(() => new ethers.JsonRpcProvider(rpcUrl), [rpcUrl]);
+
+const usdtAddress = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
+
+const erc20Abi = [
+  "function balanceOf(address owner) view returns (uint256)",
+  "function decimals() view returns (uint8)",
+  "function symbol() view returns (string)",
+];
 
 type WalletState = {
   address: string;
@@ -61,6 +74,40 @@ export default function DashboardPage() {
   const [checkingWallet, setCheckingWallet] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+
+  const [localWallet, setLocalWallet] = useState<any>(null);
+const [standaloneEthBalance, setStandaloneEthBalance] = useState("0.0000");
+const [standaloneUsdtBalance, setStandaloneUsdtBalance] = useState("0.00");
+const [standaloneLoading, setStandaloneLoading] = useState(false);
+const [activeMode, setActiveMode] = useState<"external" | "standalone" | "none">("none");
+
+useEffect(() => {
+  const loadStandaloneBalances = async () => {
+    if (!localWallet?.address || activeMode !== "standalone") return;
+
+    try {
+      setStandaloneLoading(true);
+
+      const ethWei = await provider.getBalance(localWallet.address);
+      const ethFormatted = Number(ethers.formatEther(ethWei)).toFixed(4);
+      setStandaloneEthBalance(ethFormatted);
+
+      const usdt = new ethers.Contract(usdtAddress, erc20Abi, provider);
+      const rawUsdt = await usdt.balanceOf(localWallet.address);
+      const decimals = await usdt.decimals();
+      const usdtFormatted = Number(ethers.formatUnits(rawUsdt, decimals)).toFixed(2);
+      setStandaloneUsdtBalance(usdtFormatted);
+    } catch (error) {
+      console.error("Failed to fetch standalone balances:", error);
+      setStandaloneEthBalance("0.0000");
+      setStandaloneUsdtBalance("0.00");
+    } finally {
+      setStandaloneLoading(false);
+    }
+  };
+
+  loadStandaloneBalances();
+}, [localWallet, activeMode, provider]);
 
   const [recipient, setRecipient] = useState("");
   const [ethAmount, setEthAmount] = useState("");
@@ -329,6 +376,73 @@ export default function DashboardPage() {
       setCheckingWallet(false);
     };
 
+    const displayAddress =
+  activeMode === "external"
+    ? wallet?.address
+    : activeMode === "standalone"
+    ? localWallet?.address
+    : "No connected account";
+
+const displayShortAddress =
+  displayAddress && displayAddress.startsWith("0x")
+    ? `${displayAddress.slice(0, 6)}...${displayAddress.slice(-4)}`
+    : displayAddress;
+
+const displayNetwork =
+  activeMode === "external"
+    ? wallet?.network || "Ethereum Mainnet"
+    : activeMode === "standalone"
+    ? "Ethereum Mainnet"
+    : "Waiting for connection";
+
+const displayEthBalance =
+  
+  activeMode === "external"
+    ? wallet?.ethBalance || "0.0000"
+    : activeMode === "standalone"
+    ? `${standaloneEthBalance} ETH`
+    : "0.0000 ETH";
+
+const displayUsdtBalance =
+  activeMode === "standalone"
+    ? `${standaloneUsdtBalance} USDT`
+    : "displayUsdtBalance";
+
+const receiveAddress =
+  activeMode === "external"
+    ? wallet?.address || "-"
+    : activeMode === "standalone"
+    ? localWallet?.address || "-"
+    : "-";
+    useEffect(() => {
+  if (wallet?.isConnected && wallet?.address) {
+    setActiveMode("external");
+  } else if (localWallet?.address) {
+    setActiveMode("standalone");
+  } else {
+    setActiveMode("none");
+  }
+}, [wallet?.isConnected, wallet?.address, localWallet]);
+
+    useEffect(() => {
+  try {
+    const raw =
+      localStorage.getItem("cw_wallet") ||
+      localStorage.getItem("cryptohost_wallet") ||
+      localStorage.getItem("wallet_data");
+
+    if (!raw) {
+      setLocalWallet(null);
+      return;
+    }
+
+    const parsed = JSON.parse(raw);
+    setLocalWallet(parsed);
+  } catch (error) {
+    console.error("Failed to load local CW wallet:", error);
+    setLocalWallet(null);
+  }
+}, []);
     checkWallet();
 
     if (window.ethereum) {
@@ -444,7 +558,7 @@ export default function DashboardPage() {
               {wallet.isConnected ? wallet.shortAddress : "-"}
             </h2>
             <p className="mt-2 break-all text-xs text-white/60">
-              {wallet.isConnected ? wallet.address : "No wallet connected"}
+              displayAddress
             </p>
           </div>
 
@@ -518,7 +632,7 @@ export default function DashboardPage() {
                 </div>
 
                 <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-                  <p className="text-sm text-white/60">Receive Address</p>
+                  <p className="text-sm text-white/60">receiveAddress</p>
                   <p className="mt-1 text-sm font-medium text-white">
                     {wallet.isConnected ? wallet.shortAddress : "-"}
                   </p>
