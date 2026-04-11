@@ -7,6 +7,8 @@ import { clearWallet, getWallet, type StoredWallet } from "../lib/wallet-storage
 
 export default function MyWalletPage() {
   const [wallet, setWallet] = useState<StoredWallet | null>(null);
+  const [showSeed, setShowSeed] = useState(false);
+const [showPK, setShowPK] = useState(false);
 
   useEffect(() => {
     const saved = getWallet();
@@ -53,14 +55,47 @@ export default function MyWalletPage() {
             </div>
 
             <div style={boxStyle}>
-              <strong>12-Word Seed Phrase</strong>
+              <div className="flex items-center justify-between">
+  <p className="text-sm text-white">
+    
+     {showSeed
+  ? wallet.mnemonic || "No seed phrase stored for this imported private-key wallet."
+  : "•••• •••• •••• •••• •••• •••• •••• •••• •••• •••• •••• ••••"}
+  </p>
+
+  <button
+    onClick={() => setShowSeed(!showSeed)}
+    className="text-xs text-emerald-400 underline ml-2"
+  >
+    {showSeed ? "Hide" : "Show"}
+  </button>
+</div>
               <div style={valueStyle}>
                 {wallet.mnemonic || "No seed phrase stored for this imported private-key wallet."}
               </div>
             </div>
 
             <div style={boxStyle}>
-              <strong>Private Key</strong>
+              <div className="flex items-center justify-between">
+  <p className="text-xs text-white break-all">
+    
+      {showPK
+  ? wallet.privateKey || "No private key found."
+  : "••••••••••••••••••••••••••••••••••"}
+  </p>
+
+  <button
+    onClick={() => setShowPK(!showPK)}
+    className="text-xs text-emerald-400 underline ml-2"
+  >
+    {showPK ? "Hide" : "Show"}
+  </button>
+</div>
+<div className="mt-4 rounded-xl bg-red-500/10 border border-red-500/20 p-3">
+  <p className="text-xs text-red-400">
+    ⚠ Never share your seed phrase or private key. Anyone with access can control your funds.
+  </p>
+</div>
               <div style={valueStyle}>{wallet.privateKey}</div>
             </div>
 
