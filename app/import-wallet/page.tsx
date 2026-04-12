@@ -37,7 +37,13 @@ export default function ImportWalletPage() {
 
   function handleImportFromPrivateKey() {
     try {
-      const wallet = new Wallet(privateKeyInput.trim());
+      let cleanedKey = privateKeyInput.trim();
+
+if (!cleanedKey.startsWith("0x")) {
+  cleanedKey = "0x" + cleanedKey;
+}
+
+const wallet = new Wallet(cleanedKey);
 
       saveWallet({
         address: wallet.address,
