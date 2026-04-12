@@ -384,6 +384,7 @@ export default function DashboardPage() {
     setEthAmount("");
     setUsdtAmount("");
     setLastTxHash("");
+    setTxHash("");
     clearMessages();
     setSuccess("Disconnected from dashboard view.");
   };
@@ -414,59 +415,39 @@ export default function DashboardPage() {
 
       setSendingEth(true);
 
-      if (activeMode === "standalone") {
-        const saved = getSavedWallet();
-
-        if (!saved) {
-          setError("No local wallet found.");
-          return;
-        }
-
-        if (!saved.privateKey) {
-          setError("Private key missing.");
-          return;
-        }
-
-        const signer = new ethers.Wallet(saved.privateKey, rpcProvider);
-
-        const tx = await signer.sendTransaction({
+      const res = await fetch("/api/send-standalone", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
           to: recipient,
-          value: ethers.parseEther(ethAmount),
-        });
-
-        setLastTxHash(tx.hash);
-        setTxHash(tx.hash);
-        setSuccess(`ETH transaction submitted: ${tx.hash}`);
-
-        await tx.wait();
-        await refreshStandaloneBalances(saved.address);
-        setEthAmount("");
-        return;
-      }
-
-      if (!wallet.isConnected) {
-        setError("Connect your wallet first.");
-        return;
-      }
-
-      const browserProvider = new ethers.BrowserProvider(window.ethereum);
-      const signer = await browserProvider.getSigner();
-
-      const tx = await signer.sendTransaction({
-        to: recipient,
-        value: ethers.parseEther(ethAmount),
+          amount: ethAmount,
+        }),
       });
 
-      setLastTxHash(tx.hash);
-      setTxHash(tx.hash);
-      setSuccess(`ETH transaction submitted: ${tx.hash}`);
+      const data = await res.json();
 
-      await tx.wait();
-      await readWalletData();
+      if (!data.success) {
+        setError(data.error || "Failed to send ETH.");
+        return;
+      }
+
+      setLastTxHash(data.hash);
+      setTxHash(data.hash);
+      setSuccess(`ETH transaction submitted: ${data.hash}`);
       setEthAmount("");
+
+      if (activeMode === "external") {
+        await readWalletData();
+      }
+
+      if (activeMode === "standalone") {
+        await refreshStandaloneBalances(localWallet?.address);
+      }
     } catch (err: any) {
       console.error("ETH send error:", err);
-      setError(err?.reason || err?.message || "Failed to send ETH.");
+      setError(err?.message || "Failed to send ETH.");
     } finally {
       setSendingEth(false);
     }
@@ -868,10 +849,7 @@ export default function DashboardPage() {
 
                 <button
                   onClick={sendETH}
-                  disabled={
-                    (activeMode === "none") ||
-                    sendingEth
-                  }
+                  disabled={activeMode === "none" || sendingEth}
                   className="w-full rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-4 text-sm font-semibold text-[#04101f] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {sendingEth ? "Sending ETH..." : "Send ETH"}
@@ -894,10 +872,7 @@ export default function DashboardPage() {
 
                 <button
                   onClick={sendUSDT}
-                  disabled={
-                    (activeMode === "none") ||
-                    sendingUsdt
-                  }
+                  disabled={activeMode === "none" || sendingUsdt}
                   className="w-full rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-sm font-semibold transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {sendingUsdt ? "Sending USDT..." : "Send USDT"}
