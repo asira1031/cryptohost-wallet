@@ -194,8 +194,10 @@ export default function DashboardPage() {
 
   useEffect(() => {
     try {
-      const raw = localStorage.getItem("cryptohost_wallet");
-
+      const raw =
+  localStorage.getItem("cryptohost_full_wallet") ||
+  localStorage.getItem("cryptohost_wallet") ||
+  localStorage.getItem("wallet_data");
       if (!raw) {
         setLocalWallet(null);
         return;
