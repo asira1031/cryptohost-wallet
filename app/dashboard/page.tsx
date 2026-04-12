@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ethers } from "ethers";
@@ -23,13 +23,7 @@ const rpcUrl =
   process.env.NEXT_PUBLIC_ETH_RPC_URL ||
   "https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY_HERE";
 
-const provider = new ethers.JsonRpcProvider(rpcUrl);
-
-const erc20Abi = [
-  "function balanceOf(address owner) view returns (uint256)",
-  "function decimals() view returns (uint8)",
-  "function symbol() view returns (string)",
-];
+const rpcProvider = new ethers.JsonRpcProvider(rpcUrl);
 
 type WalletState = {
   address: string;
@@ -55,6 +49,30 @@ function WalletLogo() {
       />
     </div>
   );
+}
+
+function getSavedWalletRaw(): string | null {
+  if (typeof window === "undefined") return null;
+
+  return (
+    localStorage.getItem("cryptohost_full_wallet") ||
+    localStorage.getItem("cryptohost_wallet") ||
+    localStorage.getItem("wallet_data")
+  );
+}
+
+function getSavedWallet(): {
+  address?: string;
+  privateKey?: string;
+  mnemonic?: string | null;
+} | null {
+  try {
+    const raw = getSavedWalletRaw();
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
 export default function DashboardPage() {
@@ -129,13 +147,41 @@ export default function DashboardPage() {
     });
   };
 
-  const explorerBaseUrl = useMemo(() => {
-    if (wallet.chainId === "1") return "https://etherscan.io/tx/";
-    if (wallet.chainId === "11155111") return "https://sepolia.etherscan.io/tx/";
-    if (wallet.chainId === "56") return "https://bscscan.com/tx/";
-    if (wallet.chainId === "137") return "https://polygonscan.com/tx/";
-    return "";
-  }, [wallet.chainId]);
+  const refreshStandaloneBalances = useCallback(async (address?: string) => {
+    if (!address) {
+      setStandaloneEthBalance("0.0000");
+      setStandaloneUsdtBalance("0.00");
+      return;
+    }
+
+    try {
+      setStandaloneLoading(true);
+
+      const ethWei = await rpcProvider.getBalance(address);
+      const ethFormatted = Number(ethers.formatEther(ethWei)).toFixed(4);
+      setStandaloneEthBalance(ethFormatted);
+
+      const usdtContract = new ethers.Contract(
+        USDT_CONTRACT,
+        usdtAbi,
+        rpcProvider
+      );
+
+      const usdtRaw = await usdtContract.balanceOf(address);
+      const usdtDecimals = await usdtContract.decimals();
+      const usdtFormatted = Number(
+        ethers.formatUnits(usdtRaw, usdtDecimals)
+      ).toFixed(2);
+
+      setStandaloneUsdtBalance(usdtFormatted);
+    } catch (err) {
+      console.error("Failed to fetch standalone balances:", err);
+      setStandaloneEthBalance("0.0000");
+      setStandaloneUsdtBalance("0.00");
+    } finally {
+      setStandaloneLoading(false);
+    }
+  }, []);
 
   const readWalletData = useCallback(async () => {
     try {
@@ -193,65 +239,9 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    try {
-      const raw =
-        localStorage.getItem("cryptohost_full_wallet") ||
-        localStorage.getItem("cryptohost_wallet") ||
-        localStorage.getItem("wallet_data");
-
-      if (!raw) {
-        setLocalWallet(null);
-        return;
-      }
-
-      const parsed = JSON.parse(raw);
-      setLocalWallet(parsed);
-    } catch (err) {
-      console.error("Failed to load local CryptoHost wallet:", err);
-      setLocalWallet(null);
-    }
+    const saved = getSavedWallet();
+    setLocalWallet(saved);
   }, []);
-
-  useEffect(() => {
-    const loadStandaloneBalances = async () => {
-      if (!localWallet?.address || activeMode !== "standalone") return;
-
-      try {
-        setStandaloneLoading(true);
-
-        const ethWei = await provider.getBalance(localWallet.address);
-        const ethFormatted = Number(ethers.formatEther(ethWei)).toFixed(4);
-        setStandaloneEthBalance(ethFormatted);
-
-        const usdt = new ethers.Contract(USDT_CONTRACT, erc20Abi, provider);
-        const rawUsdt = await usdt.balanceOf(localWallet.address);
-        const decimals = await usdt.decimals();
-        const usdtFormatted = Number(
-          ethers.formatUnits(rawUsdt, decimals)
-        ).toFixed(2);
-
-        setStandaloneUsdtBalance(usdtFormatted);
-      } catch (err) {
-        console.error("Failed to fetch standalone balances:", err);
-        setStandaloneEthBalance("0.0000");
-        setStandaloneUsdtBalance("0.00");
-      } finally {
-        setStandaloneLoading(false);
-      }
-    };
-
-    loadStandaloneBalances();
-  }, [localWallet, activeMode]);
-
-  useEffect(() => {
-    if (wallet.isConnected && wallet.address) {
-      setActiveMode("external");
-    } else if (localWallet?.address) {
-      setActiveMode("standalone");
-    } else {
-      setActiveMode("none");
-    }
-  }, [wallet.isConnected, wallet.address, localWallet]);
 
   useEffect(() => {
     const checkWallet = async () => {
@@ -262,28 +252,61 @@ export default function DashboardPage() {
 
     checkWallet();
 
-    if (!window.ethereum) return;
+    if (window.ethereum) {
+      const handleAccountsChanged = async (accounts: string[]) => {
+        if (!accounts || accounts.length === 0) {
+          resetWalletState();
+          return;
+        }
+        await readWalletData();
+      };
 
-    const handleAccountsChanged = async (accounts: string[]) => {
-      if (!accounts || accounts.length === 0) {
-        resetWalletState();
-        return;
-      }
-      await readWalletData();
-    };
+      const handleChainChanged = async () => {
+        await readWalletData();
+      };
 
-    const handleChainChanged = async () => {
-      await readWalletData();
-    };
+      window.ethereum.on?.("accountsChanged", handleAccountsChanged);
+      window.ethereum.on?.("chainChanged", handleChainChanged);
 
-    window.ethereum.on?.("accountsChanged", handleAccountsChanged);
-    window.ethereum.on?.("chainChanged", handleChainChanged);
-
-    return () => {
-      window.ethereum?.removeListener?.("accountsChanged", handleAccountsChanged);
-      window.ethereum?.removeListener?.("chainChanged", handleChainChanged);
-    };
+      return () => {
+        window.ethereum?.removeListener?.("accountsChanged", handleAccountsChanged);
+        window.ethereum?.removeListener?.("chainChanged", handleChainChanged);
+      };
+    }
   }, [readWalletData]);
+
+  useEffect(() => {
+    if (wallet.isConnected && wallet.address) {
+      setActiveMode("external");
+      return;
+    }
+
+    if (localWallet?.address) {
+      setActiveMode("standalone");
+      return;
+    }
+
+    setActiveMode("none");
+  }, [wallet.isConnected, wallet.address, localWallet]);
+
+  useEffect(() => {
+    if (activeMode === "standalone" && localWallet?.address) {
+      refreshStandaloneBalances(localWallet.address);
+    }
+  }, [activeMode, localWallet, refreshStandaloneBalances]);
+
+  const explorerBaseUrl =
+    wallet.chainId === "1"
+      ? "https://etherscan.io/tx/"
+      : wallet.chainId === "11155111"
+      ? "https://sepolia.etherscan.io/tx/"
+      : wallet.chainId === "56"
+      ? "https://bscscan.com/tx/"
+      : wallet.chainId === "137"
+      ? "https://polygonscan.com/tx/"
+      : activeMode === "standalone"
+      ? "https://etherscan.io/tx/"
+      : "";
 
   const displayAddress =
     activeMode === "external"
@@ -361,7 +384,6 @@ export default function DashboardPage() {
     setEthAmount("");
     setUsdtAmount("");
     setLastTxHash("");
-    setTxHash("");
     clearMessages();
     setSuccess("Disconnected from dashboard view.");
   };
@@ -380,11 +402,6 @@ export default function DashboardPage() {
       setLastTxHash("");
       setTxHash("");
 
-      if (!wallet.isConnected) {
-        setError("Connect your wallet first.");
-        return;
-      }
-
       if (!validateRecipient(recipient)) {
         setError("Please enter a valid recipient address.");
         return;
@@ -396,6 +413,41 @@ export default function DashboardPage() {
       }
 
       setSendingEth(true);
+
+      if (activeMode === "standalone") {
+        const saved = getSavedWallet();
+
+        if (!saved) {
+          setError("No local wallet found.");
+          return;
+        }
+
+        if (!saved.privateKey) {
+          setError("Private key missing.");
+          return;
+        }
+
+        const signer = new ethers.Wallet(saved.privateKey, rpcProvider);
+
+        const tx = await signer.sendTransaction({
+          to: recipient,
+          value: ethers.parseEther(ethAmount),
+        });
+
+        setLastTxHash(tx.hash);
+        setTxHash(tx.hash);
+        setSuccess(`ETH transaction submitted: ${tx.hash}`);
+
+        await tx.wait();
+        await refreshStandaloneBalances(saved.address);
+        setEthAmount("");
+        return;
+      }
+
+      if (!wallet.isConnected) {
+        setError("Connect your wallet first.");
+        return;
+      }
 
       const browserProvider = new ethers.BrowserProvider(window.ethereum);
       const signer = await browserProvider.getSigner();
@@ -426,16 +478,6 @@ export default function DashboardPage() {
       setLastTxHash("");
       setTxHash("");
 
-      if (!wallet.isConnected) {
-        setError("Connect your wallet first.");
-        return;
-      }
-
-      if (wallet.chainId !== "1") {
-        setError("USDT send is set for Ethereum Mainnet only.");
-        return;
-      }
-
       if (!validateRecipient(recipient)) {
         setError("Please enter a valid recipient address.");
         return;
@@ -447,6 +489,51 @@ export default function DashboardPage() {
       }
 
       setSendingUsdt(true);
+
+      if (activeMode === "standalone") {
+        const saved = getSavedWallet();
+
+        if (!saved) {
+          setError("No local wallet found.");
+          return;
+        }
+
+        if (!saved.privateKey) {
+          setError("Private key missing.");
+          return;
+        }
+
+        const signer = new ethers.Wallet(saved.privateKey, rpcProvider);
+        const usdtWithSigner = new ethers.Contract(
+          USDT_CONTRACT,
+          usdtAbi,
+          signer
+        );
+
+        const decimals = await usdtWithSigner.decimals();
+        const amount = ethers.parseUnits(usdtAmount, decimals);
+
+        const tx = await usdtWithSigner.transfer(recipient, amount);
+
+        setLastTxHash(tx.hash);
+        setTxHash(tx.hash);
+        setSuccess(`USDT transaction submitted: ${tx.hash}`);
+
+        await tx.wait();
+        await refreshStandaloneBalances(saved.address);
+        setUsdtAmount("");
+        return;
+      }
+
+      if (!wallet.isConnected) {
+        setError("Connect your wallet first.");
+        return;
+      }
+
+      if (wallet.chainId !== "1") {
+        setError("USDT send is set for Ethereum Mainnet only.");
+        return;
+      }
 
       const browserProvider = new ethers.BrowserProvider(window.ethereum);
       const signer = await browserProvider.getSigner();
@@ -543,7 +630,7 @@ export default function DashboardPage() {
         )}
 
         {success && (
-          <div className="mb-6 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-200 break-all">
+          <div className="mb-6 break-all rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-200">
             {success}
           </div>
         )}
@@ -609,7 +696,7 @@ export default function DashboardPage() {
             <p className="text-sm text-white/60">Network</p>
             <h2 className="mt-3 text-2xl font-bold">{displayNetwork}</h2>
             <p className="mt-2 text-sm text-white/60">
-              Chain ID: {wallet.isConnected ? wallet.chainId : "-"}
+              Chain ID: {wallet.isConnected ? wallet.chainId : activeMode === "standalone" ? "1" : "-"}
             </p>
           </div>
         </div>
@@ -781,7 +868,10 @@ export default function DashboardPage() {
 
                 <button
                   onClick={sendETH}
-                  disabled={!wallet.isConnected || sendingEth}
+                  disabled={
+                    (activeMode === "none") ||
+                    sendingEth
+                  }
                   className="w-full rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-4 text-sm font-semibold text-[#04101f] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {sendingEth ? "Sending ETH..." : "Send ETH"}
@@ -804,7 +894,10 @@ export default function DashboardPage() {
 
                 <button
                   onClick={sendUSDT}
-                  disabled={!wallet.isConnected || sendingUsdt}
+                  disabled={
+                    (activeMode === "none") ||
+                    sendingUsdt
+                  }
                   className="w-full rounded-2xl border border-white/10 bg-white/10 px-5 py-4 text-sm font-semibold transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {sendingUsdt ? "Sending USDT..." : "Send USDT"}
