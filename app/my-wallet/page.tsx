@@ -2,201 +2,279 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { QRCodeCanvas } from "qrcode.react";
-import { clearWallet, getWallet, type StoredWallet } from "../lib/wallet-storage";
+import { ethers } from "ethers";
+
+const USDT_CONTRACT = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
+
+const erc20Abi = [
+  "function balanceOf(address owner) view returns (uint256)",
+  "function decimals() view returns (uint8)",
+  "function symbol() view returns (string)",
+];
+
+const rpcUrl =
+  process.env.NEXT_PUBLIC_ETH_RPC_URL ||
+  "https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY_HERE";
+
+const provider = new ethers.JsonRpcProvider(rpcUrl);
+
+type SavedEncryptedWallet = {
+  address: string;
+  encryptedJson: string;
+  createdAt: string;
+};
 
 export default function MyWalletPage() {
-  const [wallet, setWallet] = useState<StoredWallet | null>(null);
-  const [showSeed, setShowSeed] = useState(false);
-const [showPK, setShowPK] = useState(false);
+  const [savedWallet, setSavedWallet] = useState<SavedEncryptedWallet | null>(null);
+
+  const [password, setPassword] = useState("");
+  const [unlocking, setUnlocking] = useState(false);
+  const [progress, setProgress] = useState(0);
+
+  const [isUnlocked, setIsUnlocked] = useState(false);
+  const [unlockedAddress, setUnlockedAddress] = useState("");
+  const [ethBalance, setEthBalance] = useState("0.0000");
+  const [usdtBalance, setUsdtBalance] = useState("0.00");
+
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   useEffect(() => {
-    const saved = getWallet();
-    setWallet(saved);
+    try {
+      const raw = localStorage.getItem("cryptohost_encrypted_wallet");
+      if (!raw) return;
+      const parsed = JSON.parse(raw) as SavedEncryptedWallet;
+      setSavedWallet(parsed);
+    } catch (err) {
+      console.error("Failed to load encrypted wallet:", err);
+      setSavedWallet(null);
+    }
   }, []);
 
-  function handleClearWallet() {
-    clearWallet();
-    setWallet(null);
-  }
+  const clearMessages = () => {
+    setError("");
+    setSuccess("");
+  };
+
+  const shortAddress = (address: string) => {
+    if (!address) return "";
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  const loadBalances = async (address: string) => {
+    try {
+      const ethWei = await provider.getBalance(address);
+      setEthBalance(Number(ethers.formatEther(ethWei)).toFixed(4));
+
+      const usdt = new ethers.Contract(USDT_CONTRACT, erc20Abi, provider);
+      const rawUsdt = await usdt.balanceOf(address);
+      const decimals = await usdt.decimals();
+
+      setUsdtBalance(Number(ethers.formatUnits(rawUsdt, decimals)).toFixed(2));
+    } catch (err) {
+      console.error("Failed to load balances:", err);
+      setEthBalance("0.0000");
+      setUsdtBalance("0.00");
+    }
+  };
+
+  const unlockWallet = async () => {
+    try {
+      clearMessages();
+
+      if (!savedWallet?.encryptedJson) {
+        setError("No encrypted wallet found.");
+        return;
+      }
+
+      if (!password) {
+        setError("Please enter your wallet password.");
+        return;
+      }
+
+      setUnlocking(true);
+      setProgress(0);
+
+      const wallet = await ethers.Wallet.fromEncryptedJson(
+        savedWallet.encryptedJson,
+        password,
+        (p) => setProgress(Math.round(p * 100))
+      );
+
+      setUnlockedAddress(wallet.address);
+      setIsUnlocked(true);
+      setSuccess("Wallet unlocked successfully.");
+
+      await loadBalances(wallet.address);
+    } catch (err: any) {
+      console.error("Unlock wallet error:", err);
+      setError(err?.message || "Failed to unlock wallet.");
+      setIsUnlocked(false);
+      setUnlockedAddress("");
+    } finally {
+      setUnlocking(false);
+    }
+  };
+
+  const lockWallet = () => {
+    setIsUnlocked(false);
+    setUnlockedAddress("");
+    setPassword("");
+    setEthBalance("0.0000");
+    setUsdtBalance("0.00");
+    clearMessages();
+    setSuccess("Wallet locked.");
+  };
+
+  const refreshBalances = async () => {
+    clearMessages();
+
+    const address = unlockedAddress || savedWallet?.address;
+    if (!address) {
+      setError("No wallet address found.");
+      return;
+    }
+
+    await loadBalances(address);
+    setSuccess("Balances refreshed.");
+  };
 
   return (
-    <main style={pageStyle}>
-      <div style={cardStyle}>
-        <h1 style={titleStyle}>My CryptoHost Wallet</h1>
-        <p style={subStyle}>
-          View your generated/imported wallet details, seed phrase, private key, and QR code.
-        </p>
+    <div className="min-h-screen bg-gradient-to-b from-[#08152f] via-[#071229] to-[#030814] px-4 py-8 text-white md:px-8">
+      <div className="mx-auto max-w-4xl">
+        <div className="rounded-3xl border border-white/10 bg-white/5 p-6 shadow-2xl backdrop-blur md:p-8">
+          <p className="text-sm uppercase tracking-[0.25em] text-cyan-300/80">
+            CryptoHost Wallet
+          </p>
+          <h1 className="mt-2 text-4xl font-bold">My Wallet</h1>
+          <p className="mt-3 text-sm text-white/70 md:text-base">
+            Unlock your encrypted standalone wallet with your password to view
+            balances and prepare for sending.
+          </p>
 
-        {!wallet ? (
-          <div style={emptyBoxStyle}>
-            <p style={{ margin: 0, color: "#cbd5e1" }}>
-              No local wallet found on this device.
-            </p>
-
-            <div style={{ marginTop: 16, display: "grid", gap: 10 }}>
-              <Link href="/create-wallet" style={linkStyle}>
-                Create Wallet
-              </Link>
-              <Link href="/import-wallet" style={linkStyle}>
-                Import Wallet
-              </Link>
+          {error && (
+            <div className="mt-6 rounded-2xl border border-red-400/20 bg-red-500/10 p-4 text-sm text-red-200">
+              {error}
             </div>
-          </div>
-        ) : (
-          <div style={{ display: "grid", gap: 14 }}>
-            <div style={boxStyle}>
-              <strong>Wallet Address</strong>
-              <div style={valueStyle}>{wallet.address}</div>
+          )}
+
+          {success && (
+            <div className="mt-6 rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4 text-sm text-emerald-200">
+              {success}
             </div>
+          )}
 
-            <div style={qrWrapStyle}>
-              <QRCodeCanvas value={wallet.address} size={180} />
+          {!savedWallet ? (
+            <div className="mt-8 rounded-2xl border border-yellow-400/20 bg-yellow-500/10 p-5 text-sm text-yellow-100">
+              No encrypted wallet found yet. Create a wallet first.
             </div>
+          ) : (
+            <>
+              <div className="mt-8 grid gap-4 md:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-sm text-white/60">Saved Wallet Address</p>
+                  <p className="mt-2 break-all text-sm text-white">
+                    {savedWallet.address}
+                  </p>
+                </div>
 
-            <div style={boxStyle}>
-              <div className="flex items-center justify-between">
-  <p className="text-sm text-white">
-    
-     {showSeed
-  ? wallet.mnemonic || "No seed phrase stored for this imported private-key wallet."
-  : "•••• •••• •••• •••• •••• •••• •••• •••• •••• •••• •••• ••••"}
-  </p>
-
-  <button
-    onClick={() => setShowSeed(!showSeed)}
-    className="text-xs text-emerald-400 underline ml-2"
-  >
-    {showSeed ? "Hide" : "Show"}
-  </button>
-</div>
-              <div style={valueStyle}>
-                {wallet.mnemonic || "No seed phrase stored for this imported private-key wallet."}
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-sm text-white/60">Created At</p>
+                  <p className="mt-2 text-sm text-white">
+                    {new Date(savedWallet.createdAt).toLocaleString()}
+                  </p>
+                </div>
               </div>
-            </div>
 
-            <div style={boxStyle}>
-              <div className="flex items-center justify-between">
-  <p className="text-xs text-white break-all">
-    
-      {showPK
-  ? wallet.privateKey || "No private key found."
-  : "••••••••••••••••••••••••••••••••••"}
-  </p>
+              <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-5">
+                <label className="mb-2 block text-sm text-white/70">
+                  Wallet Password
+                </label>
+                <input
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter your wallet password"
+                  className="w-full rounded-2xl border border-white/10 bg-[#0a1222] px-4 py-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-cyan-400/40"
+                />
 
-  <button
-    onClick={() => setShowPK(!showPK)}
-    className="text-xs text-emerald-400 underline ml-2"
-  >
-    {showPK ? "Hide" : "Show"}
-  </button>
-</div>
-<div className="mt-4 rounded-xl bg-red-500/10 border border-red-500/20 p-3">
-  <p className="text-xs text-red-400">
-    ⚠ Never share your seed phrase or private key. Anyone with access can control your funds.
-  </p>
-</div>
-              <div style={valueStyle}>{wallet.privateKey}</div>
-            </div>
+                <div className="mt-4 flex flex-wrap gap-3">
+                  <button
+                    onClick={unlockWallet}
+                    disabled={unlocking}
+                    className="rounded-2xl bg-gradient-to-r from-cyan-400 to-blue-500 px-5 py-3 text-sm font-semibold text-[#04101f] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {unlocking ? `Unlocking... ${progress}%` : "Unlock Wallet"}
+                  </button>
 
-            <div style={boxStyle}>
-              <strong>Created / Imported</strong>
-              <div style={valueStyle}>{wallet.createdAt}</div>
-            </div>
+                  <button
+                    onClick={lockWallet}
+                    className="rounded-2xl border border-white/10 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
+                  >
+                    Lock Wallet
+                  </button>
 
-            <button style={dangerButtonStyle} onClick={handleClearWallet}>
-              Clear Wallet From This Device
-            </button>
+                  <button
+                    onClick={refreshBalances}
+                    className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 px-5 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-500/15"
+                  >
+                    Refresh Balances
+                  </button>
+                </div>
+              </div>
+
+              <div className="mt-8 grid gap-4 md:grid-cols-3">
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-sm text-white/60">Status</p>
+                  <p className="mt-2 text-lg font-semibold text-white">
+                    {isUnlocked ? "Unlocked" : "Locked"}
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-sm text-white/60">ETH Balance</p>
+                  <p className="mt-2 text-lg font-semibold text-white">
+                    {ethBalance} ETH
+                  </p>
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                  <p className="text-sm text-white/60">USDT Balance</p>
+                  <p className="mt-2 text-lg font-semibold text-white">
+                    {usdtBalance} USDT
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-6 rounded-2xl border border-white/10 bg-black/20 p-4">
+                <p className="text-sm text-white/60">Active Address</p>
+                <p className="mt-2 break-all text-sm text-white">
+                  {unlockedAddress || savedWallet.address}
+                </p>
+                <p className="mt-2 text-xs text-white/50">
+                  {shortAddress(unlockedAddress || savedWallet.address)}
+                </p>
+              </div>
+            </>
+          )}
+
+          <div className="mt-8 flex flex-wrap gap-3">
+            <Link
+              href="/create-wallet"
+              className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-semibold text-white transition hover:bg-white/15"
+            >
+              Create Wallet
+            </Link>
+
+            <Link
+              href="/dashboard"
+              className="rounded-2xl border border-cyan-400/20 bg-cyan-500/10 px-4 py-3 text-sm font-semibold text-cyan-200 transition hover:bg-cyan-500/15"
+            >
+              Back to Dashboard
+            </Link>
           </div>
-        )}
-
-        <div style={{ marginTop: 20, display: "grid", gap: 8 }}>
-          <Link href="/create-wallet" style={linkStyle}>
-            Create Wallet
-          </Link>
-          <Link href="/import-wallet" style={linkStyle}>
-            Import Wallet
-          </Link>
-          <Link href="/dashboard" style={linkStyle}>
-            Back to Dashboard
-          </Link>
         </div>
       </div>
-    </main>
+    </div>
   );
 }
-
-const pageStyle: React.CSSProperties = {
-  minHeight: "100vh",
-  background: "#03113a",
-  display: "flex",
-  alignItems: "center",
-  justifyContent: "center",
-  padding: 24,
-};
-
-const cardStyle: React.CSSProperties = {
-  width: "100%",
-  maxWidth: 820,
-  background: "#13205a",
-  borderRadius: 20,
-  padding: 28,
-  color: "#fff",
-  border: "1px solid rgba(255,255,255,0.08)",
-};
-
-const titleStyle: React.CSSProperties = {
-  marginTop: 0,
-  marginBottom: 8,
-};
-
-const subStyle: React.CSSProperties = {
-  color: "rgba(255,255,255,0.75)",
-  marginBottom: 20,
-};
-
-const boxStyle: React.CSSProperties = {
-  background: "#0b1220",
-  border: "1px solid rgba(255,255,255,0.12)",
-  borderRadius: 14,
-  padding: 16,
-};
-
-const emptyBoxStyle: React.CSSProperties = {
-  background: "#0b1220",
-  border: "1px solid rgba(255,255,255,0.12)",
-  borderRadius: 14,
-  padding: 20,
-};
-
-const valueStyle: React.CSSProperties = {
-  marginTop: 8,
-  wordBreak: "break-word",
-  lineHeight: 1.6,
-  color: "#dbeafe",
-};
-
-const qrWrapStyle: React.CSSProperties = {
-  background: "#ffffff",
-  borderRadius: 16,
-  padding: 20,
-  display: "inline-flex",
-  width: "fit-content",
-};
-
-const dangerButtonStyle: React.CSSProperties = {
-  width: "100%",
-  padding: "14px 16px",
-  borderRadius: 12,
-  border: "none",
-  background: "#b91c1c",
-  color: "#fff",
-  fontWeight: 700,
-  cursor: "pointer",
-};
-
-const linkStyle: React.CSSProperties = {
-  color: "#93c5fd",
-  textDecoration: "none",
-  fontSize: 14,
-};
