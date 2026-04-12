@@ -14,7 +14,7 @@ const usdtAbi = [
 
 const rpcUrl =
   process.env.NEXT_PUBLIC_ETH_RPC_URL ||
-  "https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY_HERE";
+  "https://eth-mainnet.g.alchemy.com/v2/gaZRkg_BK7Eou-s9f5NpV";
 
 const provider = new ethers.JsonRpcProvider(rpcUrl);
 
