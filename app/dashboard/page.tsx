@@ -195,9 +195,10 @@ export default function DashboardPage() {
   useEffect(() => {
     try {
       const raw =
-  localStorage.getItem("cryptohost_full_wallet") ||
-  localStorage.getItem("cryptohost_wallet") ||
-  localStorage.getItem("wallet_data");
+        localStorage.getItem("cryptohost_full_wallet") ||
+        localStorage.getItem("cryptohost_wallet") ||
+        localStorage.getItem("wallet_data");
+
       if (!raw) {
         setLocalWallet(null);
         return;
@@ -243,14 +244,14 @@ export default function DashboardPage() {
   }, [localWallet, activeMode]);
 
   useEffect(() => {
-    if (wallet?.isConnected && wallet?.address) {
+    if (wallet.isConnected && wallet.address) {
       setActiveMode("external");
     } else if (localWallet?.address) {
       setActiveMode("standalone");
     } else {
       setActiveMode("none");
     }
-  }, [wallet?.isConnected, wallet?.address, localWallet]);
+  }, [wallet.isConnected, wallet.address, localWallet]);
 
   useEffect(() => {
     const checkWallet = async () => {
@@ -261,27 +262,27 @@ export default function DashboardPage() {
 
     checkWallet();
 
-    if (window.ethereum) {
-      const handleAccountsChanged = async (accounts: string[]) => {
-        if (!accounts || accounts.length === 0) {
-          resetWalletState();
-          return;
-        }
-        await readWalletData();
-      };
+    if (!window.ethereum) return;
 
-      const handleChainChanged = async () => {
-        await readWalletData();
-      };
+    const handleAccountsChanged = async (accounts: string[]) => {
+      if (!accounts || accounts.length === 0) {
+        resetWalletState();
+        return;
+      }
+      await readWalletData();
+    };
 
-      window.ethereum.on?.("accountsChanged", handleAccountsChanged);
-      window.ethereum.on?.("chainChanged", handleChainChanged);
+    const handleChainChanged = async () => {
+      await readWalletData();
+    };
 
-      return () => {
-        window.ethereum?.removeListener?.("accountsChanged", handleAccountsChanged);
-        window.ethereum?.removeListener?.("chainChanged", handleChainChanged);
-      };
-    }
+    window.ethereum.on?.("accountsChanged", handleAccountsChanged);
+    window.ethereum.on?.("chainChanged", handleChainChanged);
+
+    return () => {
+      window.ethereum?.removeListener?.("accountsChanged", handleAccountsChanged);
+      window.ethereum?.removeListener?.("chainChanged", handleChainChanged);
+    };
   }, [readWalletData]);
 
   const displayAddress =
@@ -360,6 +361,7 @@ export default function DashboardPage() {
     setEthAmount("");
     setUsdtAmount("");
     setLastTxHash("");
+    setTxHash("");
     clearMessages();
     setSuccess("Disconnected from dashboard view.");
   };
