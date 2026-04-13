@@ -7,7 +7,7 @@ import { ethers } from "ethers";
 
 const ETH_RPC_URL =
   process.env.NEXT_PUBLIC_ETH_RPC_URL ||
-  "https://eth-mainnet.g.alchemy.com/v2/YOUR_KEY_HERE";
+  "https://eth-mainnet.g.alchemy.com/v2/gaZRkg_BK7Eou-s9f5Np";
 
 const USDT_CONTRACT = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
 
