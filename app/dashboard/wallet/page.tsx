@@ -933,6 +933,15 @@ export default function StandaloneCWWalletDashboard() {
                       <p className="text-sm font-semibold">{ethBalance} ETH</p>
                     </div>
                   </div>
+                  <div className="flex items-center justify-between rounded-2xl bg-[#101d31] px-4 py-4">
+  <div>
+    <p className="text-sm font-semibold">EURC</p>
+    <p className="text-xs text-white/55">Stablecoin</p>
+  </div>
+  <div className="text-right">
+    <p className="text-sm font-semibold">0.00</p>
+  </div>
+</div>
 
                   <div className="flex items-center justify-between rounded-2xl bg-[#101d31] px-4 py-4">
                     <div>
