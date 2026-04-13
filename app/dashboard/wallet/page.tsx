@@ -1,4 +1,5 @@
 "use client";
+
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
@@ -23,6 +24,14 @@ type LocalWalletState = {
 };
 
 type PageKey = "home" | "wallet" | "markets" | "swap" | "security";
+
+type MarketPriceMap = Record<
+  string,
+  {
+    usd: number;
+    usd_24h_change?: number;
+  }
+>;
 
 function loadLocalWallet(): LocalWalletState | null {
   if (typeof window === "undefined") return null;
@@ -74,6 +83,29 @@ function formatUsd(value: number) {
   })}`;
 }
 
+function formatPrice(value?: number) {
+  if (typeof value !== "number") return "$0.00";
+
+  if (value >= 1000) {
+    return formatUsd(value);
+  }
+
+  if (value >= 1) {
+    return `$${value.toFixed(2)}`;
+  }
+
+  if (value >= 0.01) {
+    return `$${value.toFixed(4)}`;
+  }
+
+  return `$${value.toFixed(6)}`;
+}
+
+function formatChange(value?: number) {
+  if (typeof value !== "number" || Number.isNaN(value)) return "+0.00%";
+  return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+}
+
 const PAGES: PageKey[] = ["home", "wallet", "markets", "swap", "security"];
 
 export default function StandaloneCWWalletDashboard() {
@@ -82,6 +114,8 @@ export default function StandaloneCWWalletDashboard() {
   const touchEndX = useRef<number | null>(null);
 
   const [page, setPage] = useState<PageKey>("wallet");
+
+  const [marketPrices, setMarketPrices] = useState<MarketPriceMap>({});
 
   const [walletData, setWalletData] = useState<LocalWalletState | null>(null);
   const [walletAddress, setWalletAddress] = useState("");
@@ -115,6 +149,24 @@ export default function StandaloneCWWalletDashboard() {
   const clearMessages = useCallback(() => {
     setError("");
     setSuccess("");
+  }, []);
+
+  const fetchMarketPrices = useCallback(async () => {
+    try {
+      const res = await fetch(
+        "https://api.coingecko.com/api/v3/simple/price?ids=ethereum,tether,binancecoin,solana&vs_currencies=usd&include_24hr_change=true",
+        { cache: "no-store" }
+      );
+
+      if (!res.ok) {
+        throw new Error("Failed to fetch market prices");
+      }
+
+      const data = (await res.json()) as MarketPriceMap;
+      setMarketPrices(data);
+    } catch (err) {
+      console.error("Market price fetch error:", err);
+    }
   }, []);
 
   const refreshBalances = useCallback(
@@ -168,6 +220,16 @@ export default function StandaloneCWWalletDashboard() {
   }, []);
 
   useEffect(() => {
+    fetchMarketPrices();
+
+    const interval = setInterval(() => {
+      fetchMarketPrices();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, [fetchMarketPrices]);
+
+  useEffect(() => {
     if (!walletAddress) {
       setEthBalance("0.000000");
       setUsdtBalance("0.00");
@@ -179,7 +241,8 @@ export default function StandaloneCWWalletDashboard() {
 
   const ethBalanceNumber = Number(ethBalance || "0");
   const usdtBalanceNumber = Number(usdtBalance || "0");
-  const estimatedUsd = ethBalanceNumber * 3200 + usdtBalanceNumber;
+  const estimatedUsd =
+    ethBalanceNumber * (marketPrices.ethereum?.usd || 3200) + usdtBalanceNumber;
 
   const handleGenerateWallet = async () => {
     try {
@@ -266,6 +329,7 @@ export default function StandaloneCWWalletDashboard() {
   const handleRefresh = async () => {
     try {
       clearMessages();
+
       if (!walletAddress) {
         setError("No wallet loaded.");
         return;
@@ -273,6 +337,7 @@ export default function StandaloneCWWalletDashboard() {
 
       setLoading(true);
       await refreshBalances(walletAddress);
+      await fetchMarketPrices();
       setSuccess("Balances refreshed.");
     } catch (err) {
       console.error(err);
@@ -411,6 +476,29 @@ export default function StandaloneCWWalletDashboard() {
       ? "Swap"
       : "Security";
 
+  const marketItems = [
+    {
+      name: "ETH",
+      price: marketPrices.ethereum?.usd,
+      change: marketPrices.ethereum?.usd_24h_change,
+    },
+    {
+      name: "USDT",
+      price: marketPrices.tether?.usd,
+      change: marketPrices.tether?.usd_24h_change,
+    },
+    {
+      name: "BNB",
+      price: marketPrices.binancecoin?.usd,
+      change: marketPrices.binancecoin?.usd_24h_change,
+    },
+    {
+      name: "SOL",
+      price: marketPrices.solana?.usd,
+      change: marketPrices.solana?.usd_24h_change,
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#073c44_0%,#04111a_34%,#02111f_100%)] px-3 py-4 text-white">
       <div className="mx-auto w-full max-w-[390px]">
@@ -542,7 +630,7 @@ export default function StandaloneCWWalletDashboard() {
             </div>
           )}
 
-          {page === "wallet" && (
+                    {page === "wallet" && (
             <div className="space-y-4">
               <div className="rounded-[32px] bg-[linear-gradient(135deg,#20e9ff_0%,#1bc9ff_32%,#1876ff_100%)] p-5 text-white">
                 <div className="flex items-start justify-between">
@@ -714,56 +802,56 @@ export default function StandaloneCWWalletDashboard() {
               )}
 
               {receiveOpen && (
-  <div className="rounded-[26px] border border-white/10 bg-white/5 p-4">
-    <h3 className="text-lg font-semibold">Receive</h3>
-    <p className="mt-2 text-sm text-white/65">
-      Use this address to receive ETH or ERC-20 tokens.
-    </p>
+                <div className="rounded-[26px] border border-white/10 bg-white/5 p-4">
+                  <h3 className="text-lg font-semibold">Receive</h3>
+                  <p className="mt-2 text-sm text-white/65">
+                    Use this address to receive ETH or ERC-20 tokens.
+                  </p>
 
-    <div className="mt-4 flex flex-col items-center rounded-2xl bg-[#101d31] p-4">
-      {walletAddress ? (
-        <>
-          <div className="rounded-2xl bg-white p-3">
-            <QRCodeSVG
-              value={walletAddress}
-              size={180}
-              bgColor="#ffffff"
-              fgColor="#000000"
-              level="H"
-              includeMargin={true}
-            />
-          </div>
+                  <div className="mt-4 flex flex-col items-center rounded-2xl bg-[#101d31] p-4">
+                    {walletAddress ? (
+                      <>
+                        <div className="rounded-2xl bg-white p-3">
+                          <QRCodeSVG
+                            value={walletAddress}
+                            size={180}
+                            bgColor="#ffffff"
+                            fgColor="#000000"
+                            level="H"
+                            includeMargin={true}
+                          />
+                        </div>
 
-          <p className="mt-4 text-xs uppercase tracking-[0.2em] text-white/45">
-            Wallet Address
-          </p>
+                        <p className="mt-4 text-xs uppercase tracking-[0.2em] text-white/45">
+                          Wallet Address
+                        </p>
 
-          <p className="mt-2 break-all text-center text-sm text-white">
-            {walletAddress}
-          </p>
+                        <p className="mt-2 break-all text-center text-sm text-white">
+                          {walletAddress}
+                        </p>
 
-          <button
-            onClick={async () => {
-              try {
-                await navigator.clipboard.writeText(walletAddress);
-                clearMessages();
-                setSuccess("Wallet address copied.");
-              } catch {
-                clearMessages();
-                setError("Failed to copy wallet address.");
-              }
-            }}
-            className="mt-4 rounded-full bg-cyan-400 px-5 py-2 text-sm font-semibold text-slate-900"
-          >
-            Copy Address
-          </button>
-        </>
-      ) : (
-        <p className="text-sm text-white/65">No wallet loaded</p>
-      )}
-    </div>
-  </div>
-)}
+                        <button
+                          onClick={async () => {
+                            try {
+                              await navigator.clipboard.writeText(walletAddress);
+                              clearMessages();
+                              setSuccess("Wallet address copied.");
+                            } catch {
+                              clearMessages();
+                              setError("Failed to copy wallet address.");
+                            }
+                          }}
+                          className="mt-4 rounded-full bg-cyan-400 px-5 py-2 text-sm font-semibold text-slate-900"
+                        >
+                          Copy Address
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-sm text-white/65">No wallet loaded</p>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {historyOpen && (
                 <div className="rounded-[26px] border border-white/10 bg-white/5 p-4">
@@ -799,40 +887,43 @@ export default function StandaloneCWWalletDashboard() {
                     Tokens
                   </button>
                 </div>
+
                 <div className="rounded-[26px] border border-white/10 bg-white/5 p-4">
-  <div className="mb-3 flex items-center justify-between">
-    <h3 className="text-lg font-semibold">Chain Status</h3>
-    <span className="rounded-full bg-cyan-400/15 px-3 py-1 text-xs text-cyan-300">
-      Multi-chain
-    </span>
-  </div>
+                  <div className="mb-3 flex items-center justify-between">
+                    <h3 className="text-lg font-semibold">Chain Status</h3>
+                    <span className="rounded-full bg-cyan-400/15 px-3 py-1 text-xs text-cyan-300">
+                      Multi-chain
+                    </span>
+                  </div>
 
-  <div className="space-y-3">
-    {[
-      { name: "ETH", status: "ready" },
-      { name: "BNB", status: "ready" },
-      { name: "Arbitrum", status: "ready" },
-    ].map((chain) => (
-      <div
-        key={chain.name}
-        className="flex items-center justify-between rounded-2xl bg-[#101d31] px-4 py-4"
-      >
-        <div>
-          <p className="text-sm font-semibold">{chain.name}</p>
-        </div>
+                  <div className="space-y-3">
+                    {[
+                      { name: "ETH", status: "ready" },
+                      { name: "BNB", status: "ready" },
+                      { name: "Arbitrum", status: "ready" },
+                    ].map((chain) => (
+                      <div
+                        key={chain.name}
+                        className="flex items-center justify-between rounded-2xl bg-[#101d31] px-4 py-4"
+                      >
+                        <div>
+                          <p className="text-sm font-semibold">{chain.name}</p>
+                        </div>
 
-        <div className="flex items-center gap-2">
-          <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-emerald-400 text-xs font-bold text-slate-950">
-            ✓
-          </span>
-          <span className="text-sm text-white/85">{chain.status}</span>
-        </div>
-      </div>
-    ))}
-  </div>
-</div>
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-emerald-400 text-xs font-bold text-slate-950">
+                            ✓
+                          </span>
+                          <span className="text-sm text-white/85">
+                            {chain.status}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
-                <div className="space-y-3">
+                <div className="mt-3 space-y-3">
                   <div className="flex items-center justify-between rounded-2xl bg-[#101d31] px-4 py-4">
                     <div>
                       <p className="text-sm font-semibold">Ethereum</p>
@@ -875,16 +966,16 @@ export default function StandaloneCWWalletDashboard() {
 
               <div className="grid grid-cols-3 gap-3">
                 <div className="rounded-2xl bg-cyan-500/15 p-3">
-                  <p className="text-xs text-cyan-300">+9,999%+</p>
-                  <p className="mt-2 text-sm font-semibold">268.7K</p>
+                  <p className="text-xs text-cyan-300">Live</p>
+                  <p className="mt-2 text-sm font-semibold">ETH</p>
                 </div>
                 <div className="rounded-2xl bg-cyan-500/15 p-3">
-                  <p className="text-xs text-cyan-300">+140.86%</p>
-                  <p className="mt-2 text-sm font-semibold">136.0K</p>
+                  <p className="text-xs text-cyan-300">Live</p>
+                  <p className="mt-2 text-sm font-semibold">BNB</p>
                 </div>
                 <div className="rounded-2xl bg-pink-500/15 p-3">
-                  <p className="text-xs text-pink-300">-4.61%</p>
-                  <p className="mt-2 text-sm font-semibold">164.6K</p>
+                  <p className="text-xs text-pink-300">Live</p>
+                  <p className="mt-2 text-sm font-semibold">SOL</p>
                 </div>
               </div>
 
@@ -897,29 +988,45 @@ export default function StandaloneCWWalletDashboard() {
 
               <div className="space-y-3">
                 {[
-                  ["RND", "$0.00036649", "+11,987.23%"],
-                  ["Pump", "$0.00025005", "+6,393.92%"],
-                  ["Harry", "$0.00034612", "-29.74%"],
-                  ["BURNIE", "$0.0043396", "-19.56%"],
-                ].map(([name, price, change]) => (
+                  {
+                    name: "ETH",
+                    price: marketPrices.ethereum?.usd ?? 0,
+                    change: marketPrices.ethereum?.usd_24h_change ?? 0,
+                  },
+                  {
+                    name: "USDT",
+                    price: marketPrices.tether?.usd ?? 0,
+                    change: marketPrices.tether?.usd_24h_change ?? 0,
+                  },
+                  {
+                    name: "BNB",
+                    price: marketPrices.binancecoin?.usd ?? 0,
+                    change: marketPrices.binancecoin?.usd_24h_change ?? 0,
+                  },
+                  {
+                    name: "SOL",
+                    price: marketPrices.solana?.usd ?? 0,
+                    change: marketPrices.solana?.usd_24h_change ?? 0,
+                  },
+                ].map((coin) => (
                   <div
-                    key={name}
+                    key={coin.name}
                     className="flex items-center justify-between rounded-2xl bg-white/5 px-4 py-4"
                   >
                     <div>
-                      <p className="text-base font-semibold">{name}</p>
-                      <p className="text-xs text-white/45">$250.04K</p>
+                      <p className="text-base font-semibold">{coin.name}</p>
+                      <p className="text-xs text-white/45">Live market price</p>
                     </div>
                     <div className="text-right">
-                      <p className="text-base font-semibold">{price}</p>
+                      <p className="text-base font-semibold">
+                        {formatUsd(coin.price)}
+                      </p>
                       <p
                         className={`text-xs ${
-                          change.startsWith("-")
-                            ? "text-pink-300"
-                            : "text-cyan-300"
+                          coin.change < 0 ? "text-pink-300" : "text-cyan-300"
                         }`}
                       >
-                        {change}
+                        {coin.change.toFixed(2)}%
                       </p>
                     </div>
                   </div>
