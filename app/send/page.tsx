@@ -3,6 +3,13 @@
 import { useState } from "react";
 import { ethers } from "ethers";
 
+// ✅ Fix TypeScript error for window.ethereum
+declare global {
+  interface Window {
+    ethereum?: any;
+  }
+}
+
 export default function SendETH() {
   const [to, setTo] = useState("");
   const [amount, setAmount] = useState("");
@@ -10,6 +17,12 @@ export default function SendETH() {
 
   const sendETH = async () => {
     try {
+      // ✅ Ensure running in browser
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      // ✅ Check MetaMask
       if (!window.ethereum) {
         alert("MetaMask not installed");
         return;
@@ -30,7 +43,7 @@ export default function SendETH() {
       setStatus("✅ Sent! TX: " + tx.hash);
     } catch (err: any) {
       console.error(err);
-      setStatus("❌ Error: " + err.message);
+      setStatus("❌ Error: " + (err?.message || "Transaction failed"));
     }
   };
 
