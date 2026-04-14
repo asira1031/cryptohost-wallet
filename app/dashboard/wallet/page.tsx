@@ -1,5 +1,5 @@
 "use client";
-
+import { FEE_PERCENT, FEE_WALLET } from "../../lib/wallet-config";
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -11,13 +11,7 @@ import {
   getEncryptedWalletAddress,
 } from "@/app/lib/wallet-security";
 
- const RAW_RPC_URL =
-  process.env.NEXT_PUBLIC_ETH_RPC_URL ??
-  "https://eth-mainnet.g.alchemy.com/v2/gaZRkg_BK7Eou-s9f5NpV";
-
-const ETH_RPC_URL = RAW_RPC_URL.trim().replace(/^=+/, "").replace(/^['"]|['"]$/g, "");
-
-const provider = new ethers.JsonRpcProvider(ETH_RPC_URL);
+import { provider } from "../../lib/wallet-provider";
 const USDT_CONTRACT = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
 
 const erc20Abi = [
@@ -186,7 +180,7 @@ export default function WalletPage() {
         usdtContract.decimals(),
         usdtContract.symbol(),
       ]);
-      console.log("Using RPC:", ETH_RPC_URL);
+      
 console.log("Loading balances for:", address);
 
       setEthBalance(Number(ethers.formatEther(ethRaw)).toFixed(4));
@@ -239,88 +233,109 @@ console.log("Loading balances for:", address);
   }, [loadWalletData]);
 
   const handleSendEth = async () => {
-    setError("");
-    setSuccess("");
-    setLastTxHash("");
+  setError("");
+  setSuccess("");
+  setLastTxHash("");
 
-    try {
-      if (!isUnlocked || !privateKey) {
-        setError("Unlock wallet first.");
-        return;
-      }
-
-      if (!walletAddress) {
-        setError("No wallet loaded.");
-        return;
-      }
-
-      if (!recipient.trim()) {
-        setError("Please enter recipient address.");
-        return;
-      }
-
-      if (!ethers.isAddress(recipient.trim())) {
-        setError("Recipient address is invalid.");
-        return;
-      }
-
-      if (!ethAmount.trim() || Number(ethAmount) <= 0) {
-        setError("Please enter a valid ETH amount.");
-        return;
-      }
-
-      let cleanedKey = privateKey.trim();
-      if (!cleanedKey.startsWith("0x")) {
-        cleanedKey = `0x${cleanedKey}`;
-      }
-
-      setSending(true);
-
-      const signer = new ethers.Wallet(cleanedKey, provider);
-
-      const tx = await signer.sendTransaction({
-        to: recipient.trim(),
-        value: ethers.parseEther(ethAmount),
-      });
-
-      setLastTxHash(tx.hash);
-
-      appendWalletTx({
-        id: `${Date.now()}-${tx.hash}`,
-        walletAddress: signer.address,
-        txHash: tx.hash,
-        token: "ETH",
-        amount: ethAmount,
-        to: recipient.trim(),
-        status: "pending",
-        createdAt: new Date().toISOString(),
-      });
-
-      const receipt = await tx.wait();
-
-      appendWalletTx({
-        id: `${Date.now()}-${tx.hash}-final`,
-        walletAddress: signer.address,
-        txHash: tx.hash,
-        token: "ETH",
-        amount: ethAmount,
-        to: recipient.trim(),
-        status: receipt?.status === 1 ? "confirmed" : "failed",
-        createdAt: new Date().toISOString(),
-      });
-
-      setSuccess("Transaction sent successfully!");
-      setRecipient("");
-      setEthAmount("");
-      await loadWalletData(signer.address);
-    } catch (err: any) {
-      console.error(err);
-      setError(err?.shortMessage || err?.message || "Transaction failed.");
-    } finally {
-      setSending(false);
+  try {
+    if (!isUnlocked || !privateKey) {
+      setError("Unlock wallet first.");
+      return;
     }
-  };
 
+    if (!walletAddress) {
+      setError("No wallet loaded.");
+      return;
+    }
+
+    if (!recipient.trim()) {
+      setError("Please enter recipient address.");
+      return;
+    }
+
+    if (!ethers.isAddress(recipient.trim())) {
+      setError("Recipient address is invalid.");
+      return;
+    }
+
+    if (!ethAmount.trim() || Number(ethAmount) <= 0) {
+      setError("Please enter a valid ETH amount.");
+      return;
+    }
+
+    const totalAmount = Number(ethAmount);
+
+    if (Number.isNaN(totalAmount) || totalAmount <= 0) {
+      setError("Invalid ETH amount.");
+      return;
+    }
+
+    const feeAmount = (totalAmount * FEE_PERCENT) / 100;
+    const sendAmount = totalAmount - feeAmount;
+
+    if (sendAmount <= 0) {
+      setError("Amount is too small after fee deduction.");
+      return;
+    }
+
+    let cleanedKey = privateKey.trim();
+    if (!cleanedKey.startsWith("0x")) {
+      cleanedKey = `0x${cleanedKey}`;
+    }
+
+    setSending(true);
+
+    const signer = new ethers.Wallet(cleanedKey, provider);
+
+    // send to recipient
+    const sendTx = await signer.sendTransaction({
+      to: recipient.trim(),
+      value: ethers.parseEther(sendAmount.toString()),
+    });
+
+    // send fee to your fee wallet
+    await signer.sendTransaction({
+      to: FEE_WALLET,
+      value: ethers.parseEther(feeAmount.toString()),
+    });
+
+    setLastTxHash(sendTx.hash);
+
+    appendWalletTx({
+      id: `${Date.now()}-${sendTx.hash}`,
+      walletAddress: signer.address,
+      txHash: sendTx.hash,
+      token: "ETH",
+      amount: sendAmount.toString(),
+      to: recipient.trim(),
+      status: "pending",
+      createdAt: new Date().toISOString(),
+    });
+
+    const receipt = await sendTx.wait();
+
+    appendWalletTx({
+      id: `${Date.now()}-${sendTx.hash}-final`,
+      walletAddress: signer.address,
+      txHash: sendTx.hash,
+      token: "ETH",
+      amount: sendAmount.toString(),
+      to: recipient.trim(),
+      status: receipt?.status === 1 ? "confirmed" : "failed",
+      createdAt: new Date().toISOString(),
+    });
+
+    setSuccess("Transaction sent successfully!");
+    setRecipient("");
+    setEthAmount("");
+    await loadWalletData(signer.address);
+  } catch (err: any) {
+    console.error(err);
+    setError(err?.shortMessage || err?.message || "Transaction failed.");
+  } finally {
+    setSending(false);
+  }
+};
   const estimatedUsd = useMemo(() => Number(usdtBalance || 0), [usdtBalance]);
 
   return (
