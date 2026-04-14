@@ -4,7 +4,7 @@ function bufferToBase64(buffer: ArrayBuffer): string {
   return btoa(String.fromCharCode(...new Uint8Array(buffer)));
 }
 
-function base64ToBuffer(base64: string): ArrayBuffer {
+function base64ToArrayBuffer(base64: string): ArrayBuffer {
   const binary = atob(base64);
   const bytes = new Uint8Array(binary.length);
 
@@ -12,10 +12,10 @@ function base64ToBuffer(base64: string): ArrayBuffer {
     bytes[i] = binary.charCodeAt(i);
   }
 
-  return bytes.buffer;
+  return bytes.buffer as ArrayBuffer;
 }
 
-async function deriveKey(password: string, salt: Uint8Array) {
+async function deriveKey(password: string, salt: Uint8Array<ArrayBuffer>) {
   const encoder = new TextEncoder();
 
   const keyMaterial = await crypto.subtle.importKey(
@@ -50,8 +50,15 @@ export async function saveEncryptedWallet(
   password: string
 ) {
   const encoder = new TextEncoder();
-  const salt = crypto.getRandomValues(new Uint8Array(16));
-  const iv = crypto.getRandomValues(new Uint8Array(12));
+
+  const salt = crypto.getRandomValues(
+    new Uint8Array(16)
+  ) as Uint8Array<ArrayBuffer>;
+
+  const iv = crypto.getRandomValues(
+    new Uint8Array(12)
+  ) as Uint8Array<ArrayBuffer>;
+
   const key = await deriveKey(password, salt);
 
   const encrypted = await crypto.subtle.encrypt(
@@ -63,7 +70,7 @@ export async function saveEncryptedWallet(
   const stored = {
     salt: bufferToBase64(salt.buffer),
     iv: bufferToBase64(iv.buffer),
-    data: bufferToBase64(encrypted),
+    data: bufferToBase64(encrypted as ArrayBuffer),
     address: payload.address,
   };
 
@@ -77,9 +84,16 @@ export async function unlockEncryptedWallet(password: string) {
   }
 
   const parsed = JSON.parse(raw);
-  const salt = new Uint8Array(base64ToBuffer(parsed.salt));
-  const iv = new Uint8Array(base64ToBuffer(parsed.iv));
-  const encryptedData = base64ToBuffer(parsed.data);
+
+  const salt = new Uint8Array(
+    base64ToArrayBuffer(parsed.salt)
+  ) as Uint8Array<ArrayBuffer>;
+
+  const iv = new Uint8Array(
+    base64ToArrayBuffer(parsed.iv)
+  ) as Uint8Array<ArrayBuffer>;
+
+  const encryptedData = base64ToArrayBuffer(parsed.data);
 
   const key = await deriveKey(password, salt);
 
