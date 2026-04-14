@@ -11,10 +11,11 @@ import {
   getEncryptedWalletAddress,
 } from "@/app/lib/wallet-security";
 
-const ETH_RPC_URL =
-  process.env.NEXT_PUBLIC_ETH_RPC_URL ||
+const RAW_RPC_URL =
+  process.env.NEXT_PUBLIC_ETH_RPC_URL ??
   "https://eth-mainnet.g.alchemy.com/v2/gaZRkg_BK7Eou-s9f5NpV";
 
+const ETH_RPC_URL = RAW_RPC_URL.trim().replace(/^['"]|['"]$/g, "");
 
 const provider = new ethers.JsonRpcProvider(ETH_RPC_URL);
 
