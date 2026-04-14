@@ -135,14 +135,16 @@ export default function WalletPage() {
 
       const wallet = ethers.Wallet.createRandom();
 
-      await saveEncryptedWallet(
-        {
-          address: wallet.address,
-          privateKey: wallet.privateKey,
-        },
-        cleanPassword
-      );
-
+           await saveEncryptedWallet(
+  {
+    address: wallet.address,
+    privateKey: wallet.privateKey,
+    ...(wallet && (wallet as any).mnemonic?.phrase
+      ? { mnemonic: (wallet as any).mnemonic.phrase }
+      : {}),
+  },
+  cleanPassword
+);
       setWalletAddress(wallet.address);
       setPrivateKey("");
       setIsUnlocked(false);
