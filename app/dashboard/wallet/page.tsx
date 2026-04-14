@@ -1,17 +1,19 @@
-"use client";
-import { FEE_PERCENT } from "../../lib/wallet-config";
+""use client";
+
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
+import { FEE_PERCENT, FEE_WALLET } from "../../lib/wallet-config";
 import {
   saveEncryptedWallet,
   unlockEncryptedWallet,
   hasEncryptedWallet,
   getEncryptedWalletAddress,
 } from "@/app/lib/wallet-security";
-
 import { provider } from "../../lib/wallet-provider";
+
+const MIN_FEE_ETH = 0.00002;
 const USDT_CONTRACT = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
 
 const erc20Abi = [
@@ -129,16 +131,17 @@ export default function WalletPage() {
 
       const wallet = ethers.Wallet.createRandom();
 
-           await saveEncryptedWallet(
-  {
-    address: wallet.address,
-    privateKey: wallet.privateKey,
-    ...(wallet && (wallet as any).mnemonic?.phrase
-      ? { mnemonic: (wallet as any).mnemonic.phrase }
-      : {}),
-  },
-  cleanPassword
-);
+      await saveEncryptedWallet(
+        {
+          address: wallet.address,
+          privateKey: wallet.privateKey,
+          ...(wallet && (wallet as any).mnemonic?.phrase
+            ? { mnemonic: (wallet as any).mnemonic.phrase }
+            : {}),
+        },
+        cleanPassword
+      );
+
       setWalletAddress(wallet.address);
       setPrivateKey("");
       setIsUnlocked(false);
@@ -180,18 +183,18 @@ export default function WalletPage() {
         usdtContract.decimals(),
         usdtContract.symbol(),
       ]);
-      
-console.log("Loading balances for:", address);
+
+      console.log("Loading balances for:", address);
 
       setEthBalance(Number(ethers.formatEther(ethRaw)).toFixed(4));
       setUsdtBalance(Number(ethers.formatUnits(usdtRaw, decimals)).toFixed(2));
       setUsdtSymbol(symbol || "USDT");
     } catch (err: any) {
-  console.error("BALANCE LOAD ERROR:", err);
-  setError(err?.message || "Failed to load wallet balances.");
-} finally {
-  setLoadingBalances(false);
-}
+      console.error("BALANCE LOAD ERROR:", err);
+      setError(err?.message || "Failed to load wallet balances.");
+    } finally {
+      setLoadingBalances(false);
+    }
   }, []);
 
   const unlockWallet = async () => {
@@ -232,107 +235,371 @@ console.log("Loading balances for:", address);
     loadWalletData();
   }, [loadWalletData]);
 
- const handleSendEth = async () => {
-  setError("");
-  setSuccess("");
-  setLastTxHash("");
+  const handleSendEth = async () => {
+    setError("");
+    setSuccess("");
+    setLastTxHash("");
 
-  try {
-    if (!isUnlocked || !privateKey) {
-      setError("Unlock wallet first.");
-      return;
+    try {
+      if (!isUnlocked || !privateKey) {
+        setError("Unlock wallet first.");
+        return;
+      }
+
+      if (!walletAddress) {
+        setError("No wallet loaded.");
+        return;
+      }
+
+      if (!recipient.trim()) {
+        setError("Please enter recipient address.");
+        return;
+      }
+
+      if (!ethers.isAddress(recipient.trim())) {
+        setError("Recipient address is invalid.");
+        return;
+      }
+
+      if (!ethAmount.trim() || Number(ethAmount) <= 0) {
+        setError("Please enter a valid ETH amount.");
+        return;
+      }
+
+      const totalAmount = Number(ethAmount);
+
+      if (Number.isNaN(totalAmount) || totalAmount <= 0) {
+        setError("Invalid ETH amount.");
+        return;
+      }
+
+      const feeAmount = (totalAmount * FEE_PERCENT) / 100;
+      const sendAmount = totalAmount - feeAmount;
+
+      if (sendAmount <= 0) {
+        setError("Amount is too small after fee deduction.");
+        return;
+      }
+
+      let cleanedKey = privateKey.trim();
+      if (!cleanedKey.startsWith("0x")) {
+        cleanedKey = `0x${cleanedKey}`;
+      }
+
+      setSending(true);
+
+      const signer = new ethers.Wallet(cleanedKey, provider);
+
+      const sendTx = await signer.sendTransaction({
+        to: recipient.trim(),
+        value: ethers.parseEther(sendAmount.toString()),
+      });
+
+      if (feeAmount >= MIN_FEE_ETH) {
+        await signer.sendTransaction({
+          to: FEE_WALLET,
+          value: ethers.parseEther(feeAmount.toString()),
+        });
+      }
+
+      setLastTxHash(sendTx.hash);
+
+      appendWalletTx({
+        id: `${Date.now()}-${sendTx.hash}`,
+        walletAddress: signer.address,
+        txHash: sendTx.hash,
+        token: "ETH",
+        amount: sendAmount.toString(),
+        to: recipient.trim(),
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      });
+
+      sendTx.wait().then((receipt) => {
+        appendWalletTx({
+          id: `${Date.now()}-${sendTx.hash}-final`,
+          walletAddress: signer.address,
+          txHash: sendTx.hash,
+          token: "ETH",
+          amount: sendAmount.toString(),
+          to: recipient.trim(),
+          status: receipt?.status === 1 ? "confirmed" : "failed",
+          createdAt: new Date().toISOString(),
+        });
+      });
+
+      setSuccess(
+        `Transaction sent successfully! ${feeAmount.toFixed(6)} ETH service fee applied.`
+      );
+      setRecipient("");
+      setEthAmount("");
+      await loadWalletData(signer.address);
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.shortMessage || err?.message || "Transaction failed.");
+    } finally {
+      setSending(false);
     }
+  };
 
-    if (!walletAddress) {
-      setError("No wallet loaded.");
-      return;
-    }
-
-    if (!recipient.trim()) {
-      setError("Please enter recipient address.");
-      return;
-    }
-
-    if (!ethers.isAddress(recipient.trim())) {
-      setError("Recipient address is invalid.");
-      return;
-    }
-
-    if (!ethAmount.trim() || Number(ethAmount) <= 0) {
-      setError("Please enter a valid ETH amount.");
-      return;
-    }
-
-    const totalAmount = Number(ethAmount);
-
-    if (Number.isNaN(totalAmount) || totalAmount <= 0) {
-      setError("Invalid ETH amount.");
-      return;
-    }
-
-    const feeAmount = (totalAmount * FEE_PERCENT) / 100;
-    const sendAmount = totalAmount - feeAmount;
-
-    if (sendAmount <= 0) {
-      setError("Amount is too small after fee deduction.");
-      return;
-    }
-
-    let cleanedKey = privateKey.trim();
-    if (!cleanedKey.startsWith("0x")) {
-      cleanedKey = `0x${cleanedKey}`;
-    }
-
-    setSending(true);
-
-    const signer = new ethers.Wallet(cleanedKey, provider);
-
-    const sendTx = await signer.sendTransaction({
-      to: recipient.trim(),
-      value: ethers.parseEther(sendAmount.toString()),
-    });
-
-    setLastTxHash(sendTx.hash);
-
-    appendWalletTx({
-      id: `${Date.now()}-${sendTx.hash}`,
-      walletAddress: signer.address,
-      txHash: sendTx.hash,
-      token: "ETH",
-      amount: sendAmount.toString(),
-      to: recipient.trim(),
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    });
-
-    const receipt = await sendTx.wait();
-
-    appendWalletTx({
-      id: `${Date.now()}-${sendTx.hash}-final`,
-      walletAddress: signer.address,
-      txHash: sendTx.hash,
-      token: "ETH",
-      amount: sendAmount.toString(),
-      to: recipient.trim(),
-      status: receipt?.status === 1 ? "confirmed" : "failed",
-      createdAt: new Date().toISOString(),
-    });
-
-    setSuccess(
-      `Transaction sent successfully! ${feeAmount.toFixed(6)} ETH service fee applied.`
-    );
-    setRecipient("");
-    setEthAmount("");
-    await loadWalletData(signer.address);
-  } catch (err: any) {
-    console.error(err);
-    setError(err?.shortMessage || err?.message || "Transaction failed.");
-  } finally {
-    setSending(false);
-  }
-};
   const estimatedUsd = useMemo(() => Number(usdtBalance || 0), [usdtBalance]);
 
+  return (
+    <div className="rounded-[22px] border border-white/10 bg-[#071923]/95 p-3">
+      <div className="mb-3 flex items-center gap-2">
+        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-orange-300 via-pink-400 to-rose-500" />
+        <div className="flex-1 rounded-full bg-white/5 px-4 py-2 text-[11px] text-white/35">
+          Search the wallet
+        </div>
+        <div className="h-7 w-7 rounded-full bg-white/8" />
+      </div>
+
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
+          <p className="text-[10px] uppercase tracking-[0.28em] text-cyan-300/75">
+            Wallet • {shortenAddress(walletAddress)}
+          </p>
+
+          {walletAddress ? (
+            <p className="mt-1 break-all text-[11px] text-white/55">
+              {walletAddress}
+            </p>
+          ) : null}
+        </div>
+
+        <div className="flex shrink-0 items-center gap-2">
+          {walletAddress ? (
+            <button
+              type="button"
+              onClick={() => copyToClipboard(walletAddress)}
+              className="rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-[10px] font-semibold text-white/85"
+            >
+              Copy
+            </button>
+          ) : null}
+
+          <span
+            className={`rounded-full px-3 py-1.5 text-[10px] font-semibold ${
+              isUnlocked
+                ? "border border-emerald-400/25 bg-emerald-500/10 text-emerald-200"
+                : "border border-amber-400/25 bg-amber-500/10 text-amber-200"
+            }`}
+          >
+            {isUnlocked ? "Unlocked" : "Locked"}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => loadWalletData()}
+            className="rounded-full border border-cyan-400/25 bg-cyan-500/15 px-3 py-1.5 text-[10px] font-semibold text-cyan-200"
+          >
+            {loadingBalances ? "Loading" : "Refresh"}
+          </button>
+        </div>
+      </div>
+
+      <div className="mb-3 space-y-2">
+        {!isUnlocked ? (
+          <>
+            <input
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Enter wallet password"
+              className="w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+            />
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={createWallet}
+                className="rounded-2xl border border-emerald-400/25 bg-emerald-500/15 px-4 py-3 text-sm font-semibold text-emerald-200"
+              >
+                Create
+              </button>
+
+              <button
+                type="button"
+                onClick={unlockWallet}
+                className="rounded-2xl border border-cyan-400/25 bg-cyan-500/15 px-4 py-3 text-sm font-semibold text-cyan-200"
+              >
+                Unlock
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+            Wallet is unlocked and ready to send.
+          </div>
+        )}
+      </div>
+
+      <div className="mb-3 grid grid-cols-3 gap-2">
+        <div className="rounded-2xl border border-white/8 bg-[#091720] p-3">
+          <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">
+            ETH
+          </p>
+          <p className="mt-2 text-xl font-bold">{ethBalance}</p>
+          <p className="mt-1 text-[10px] text-white/45">Ethereum Mainnet</p>
+        </div>
+
+        <div className="rounded-2xl border border-white/8 bg-[#091720] p-3">
+          <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">
+            {usdtSymbol}
+          </p>
+          <p className="mt-2 text-xl font-bold">{usdtBalance}</p>
+          <p className="mt-1 text-[10px] text-white/45">Stable balance</p>
+        </div>
+
+        <div className="rounded-2xl border border-white/8 bg-[#091720] p-3">
+          <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">
+            USD
+          </p>
+          <p className="mt-2 text-xl font-bold">${formatUsd(estimatedUsd)}</p>
+          <p className="mt-1 text-[10px] text-white/45">Estimated value</p>
+        </div>
+      </div>
+
+      <div className="mt-4 rounded-[24px] border border-white/8 bg-[#0a1821] p-3">
+        <div className="mb-3 flex gap-2">
+          <button
+            type="button"
+            onClick={() => setActiveTab("send")}
+            className={`rounded-full px-4 py-2 text-xs font-medium ${
+              activeTab === "send"
+                ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
+                : "border border-white/10 bg-white/10 text-white/75"
+            }`}
+          >
+            Send
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab("receive")}
+            className={`rounded-full px-4 py-2 text-xs font-medium ${
+              activeTab === "receive"
+                ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
+                : "border border-white/10 bg-white/10 text-white/75"
+            }`}
+          >
+            Receive
+          </button>
+        </div>
+
+        {activeTab === "send" ? (
+          <div className="space-y-3">
+            <div>
+              <label className="mb-2 block text-sm text-white/65">
+                Recipient Address
+              </label>
+              <input
+                value={recipient}
+                onChange={(e) => setRecipient(e.target.value)}
+                placeholder="0x..."
+                className="w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm text-white/65">
+                ETH Amount
+              </label>
+              <input
+                value={ethAmount}
+                onChange={(e) => setEthAmount(e.target.value)}
+                placeholder="0.001"
+                className="w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+              />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleSendEth}
+              disabled={sending || !isUnlocked}
+              className="w-full rounded-2xl border border-cyan-400/25 bg-cyan-500/20 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {!isUnlocked
+                ? "Unlock Wallet First"
+                : sending
+                ? "Sending..."
+                : "Send ETH"}
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="flex justify-center rounded-[22px] bg-white p-4">
+              <QRCodeSVG value={walletAddress || "No wallet loaded"} size={180} />
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-[#06131b] p-3">
+              <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">
+                Receive Address
+              </p>
+              <p className="mt-2 break-all text-sm text-white/85">
+                {walletAddress || "No wallet loaded"}
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => copyToClipboard(walletAddress)}
+              className="w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-medium text-white"
+            >
+              Copy Wallet Address
+            </button>
+          </div>
+        )}
+
+        {(error || success || lastTxHash) && (
+          <div className="mt-3 space-y-2">
+            {error ? (
+              <div className="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                {error}
+              </div>
+            ) : null}
+
+            {success ? (
+              <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+                {success}
+              </div>
+            ) : null}
+
+            {lastTxHash ? (
+              <div className="rounded-2xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-200">
+                TX Hash: <span className="break-all font-mono">{lastTxHash}</span>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </div>
+
+      <div className="mt-4 grid grid-cols-4 gap-2 rounded-full border border-white/8 bg-white/6 p-1.5 text-center">
+        <Link
+          href="/dashboard"
+          className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70"
+        >
+          Home
+        </Link>
+        <Link
+          href="/dashboard/market"
+          className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70"
+        >
+          Markets
+        </Link>
+        <span className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70">
+          Swap
+        </span>
+        <Link
+          href="/dashboard/history"
+          className="rounded-full bg-cyan-500/90 px-2 py-2 text-[10px] font-medium text-[#031019]"
+        >
+          Wallet
+        </Link>
+      </div>
+    </div>
+  );
+}
   return (
     <div className="rounded-[22px] border border-white/10 bg-[#071923]/95 p-3">
       <div className="mb-3 flex items-center gap-2">
