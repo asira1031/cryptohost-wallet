@@ -15,10 +15,9 @@ const RAW_RPC_URL =
   process.env.NEXT_PUBLIC_ETH_RPC_URL ??
   "https://eth-mainnet.g.alchemy.com/v2/gaZRkg_BK7Eou-s9f5NpV";
 
-const ETH_RPC_URL = RAW_RPC_URL.trim().replace(/^['"]|['"]$/g, "");
+const ETH_RPC_URL = RAW_RPC_URL.trim().replace(/^=/, "");
 
 const provider = new ethers.JsonRpcProvider(ETH_RPC_URL);
-
 const USDT_CONTRACT = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
 
 const erc20Abi = [
