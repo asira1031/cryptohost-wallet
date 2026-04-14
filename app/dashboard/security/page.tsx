@@ -1,15 +1,46 @@
 "use client";
 
 import { useState } from "react";
-import { clearEncryptedWallet, hasEncryptedWallet } from "@/app/lib/wallet-security";
+import {
+  clearEncryptedWallet,
+  hasEncryptedWallet,
+  unlockEncryptedWallet,
+} from "@/app/lib/wallet-security";
 
 export default function SecurityPage() {
   const [message, setMessage] = useState("");
+
+  // 🔐 backup states
+  const [backupPassword, setBackupPassword] = useState("");
+  const [revealedKey, setRevealedKey] = useState("");
+  const [revealedMnemonic, setRevealedMnemonic] = useState("");
+  const [backupError, setBackupError] = useState("");
 
   const handleClearWallet = () => {
     if (!window.confirm("Remove encrypted wallet from this device?")) return;
     clearEncryptedWallet();
     setMessage("Encrypted wallet removed from this device.");
+  };
+
+  // 🔐 reveal function
+  const handleRevealBackup = async () => {
+    try {
+      setBackupError("");
+      setRevealedKey("");
+      setRevealedMnemonic("");
+
+      if (!backupPassword.trim()) {
+        setBackupError("Enter password to reveal backup.");
+        return;
+      }
+
+      const unlocked = await unlockEncryptedWallet(backupPassword.trim());
+
+      setRevealedKey((unlocked as any).privateKey || "");
+      setRevealedMnemonic((unlocked as any).mnemonic || "");
+    } catch (err) {
+      setBackupError("Invalid password or no encrypted wallet found.");
+    }
   };
 
   return (
@@ -33,6 +64,7 @@ export default function SecurityPage() {
       </div>
 
       <div className="space-y-3">
+        {/* STATUS */}
         <div className="rounded-[18px] border border-white/8 bg-[#091720] p-3">
           <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">
             Encrypted Wallet Status
@@ -44,6 +76,7 @@ export default function SecurityPage() {
           </p>
         </div>
 
+        {/* INFO */}
         <div className="rounded-[18px] border border-white/8 bg-[#091720] p-3">
           <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">
             Device Security
@@ -53,6 +86,62 @@ export default function SecurityPage() {
           </p>
         </div>
 
+        {/* 🔐 BACKUP SECTION */}
+        <div className="rounded-[18px] border border-yellow-400/25 bg-yellow-500/10 p-3">
+          <p className="text-[10px] uppercase tracking-[0.22em] text-yellow-200/80">
+            Backup Recovery
+          </p>
+
+          <p className="mt-2 text-sm text-yellow-100/80">
+            ⚠️ Save your private key and recovery phrase. If lost, funds cannot be recovered.
+          </p>
+
+          <input
+            type="password"
+            value={backupPassword}
+            onChange={(e) => setBackupPassword(e.target.value)}
+            placeholder="Enter wallet password"
+            className="mt-3 w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+          />
+
+          <button
+            type="button"
+            onClick={handleRevealBackup}
+            className="mt-3 w-full rounded-2xl border border-yellow-400/25 bg-yellow-500/15 px-4 py-3 text-sm font-semibold text-yellow-100"
+          >
+            Reveal Private Key & 12 Words
+          </button>
+
+          {backupError && (
+            <div className="mt-3 rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+              {backupError}
+            </div>
+          )}
+
+          {revealedKey && (
+            <div className="mt-3 rounded-2xl border border-white/8 bg-[#091720] p-3">
+              <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">
+                Private Key
+              </p>
+              <p className="mt-2 break-all text-xs text-white/90">
+                {revealedKey}
+              </p>
+            </div>
+          )}
+
+          {revealedMnemonic && (
+            <div className="mt-3 rounded-2xl border border-white/8 bg-[#091720] p-3">
+              <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">
+                Recovery Phrase
+              </p>
+              <p className="mt-2 text-xs text-white/90">
+                {revealedMnemonic}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* DELETE */}
         <button
           type="button"
           onClick={handleClearWallet}
@@ -61,11 +150,11 @@ export default function SecurityPage() {
           Remove Encrypted Wallet
         </button>
 
-        {message ? (
+        {message && (
           <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
             {message}
           </div>
-        ) : null}
+        )}
       </div>
     </div>
   );
