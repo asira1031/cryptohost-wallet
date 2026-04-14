@@ -1,5 +1,7 @@
 "use client";
 
+console.log("SECURITY PAGE FIXED");
+
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
