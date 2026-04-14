@@ -4,6 +4,12 @@ import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
+import {
+  saveEncryptedWallet,
+  unlockEncryptedWallet,
+  hasEncryptedWallet,
+  getEncryptedWalletAddress,
+} from "@/app/lib/wallet-security";
 
 const ETH_RPC_URL =
   process.env.NEXT_PUBLIC_ETH_RPC_URL ||
@@ -21,13 +27,6 @@ const erc20Abi = [
 
 type TabKey = "send" | "receive";
 type MarketChip = "tokens" | "perps" | "stocks";
-
-type LocalWalletState = {
-  address?: string;
-  privateKey?: string;
-  mnemonic?: string;
-};
-
 type TxStatus = "pending" | "confirmed" | "failed";
 
 type WalletTx = {
@@ -54,23 +53,6 @@ function appendWalletTx(tx: WalletTx) {
     localStorage.setItem(TX_STORAGE_KEY, JSON.stringify(safeCurrent));
   } catch (error) {
     console.error("Failed to save transaction history:", error);
-  }
-}
-
-function readLocalWallet(): LocalWalletState | null {
-  if (typeof window === "undefined") return null;
-
-  const raw =
-    localStorage.getItem("cryptohost_full_wallet") ||
-    localStorage.getItem("cryptohost_wallet") ||
-    localStorage.getItem("wallet_data");
-
-  if (!raw) return null;
-
-  try {
-    return JSON.parse(raw) as LocalWalletState;
-  } catch {
-    return null;
   }
 }
 
@@ -101,6 +83,9 @@ export default function StandaloneCWalletDashboard() {
   const [usdtBalance, setUsdtBalance] = useState("0.00");
   const [usdtSymbol, setUsdtSymbol] = useState("USDT");
 
+  const [password, setPassword] = useState("");
+  const [isUnlocked, setIsUnlocked] = useState(false);
+
   const [recipient, setRecipient] = useState("");
   const [ethAmount, setEthAmount] = useState("");
   const [loadingBalances, setLoadingBalances] = useState(true);
@@ -110,29 +95,61 @@ export default function StandaloneCWalletDashboard() {
   const [success, setSuccess] = useState("");
   const [lastTxHash, setLastTxHash] = useState("");
 
-  const loadWalletData = useCallback(async () => {
+  const createWallet = async () => {
+    try {
+      setError("");
+      setSuccess("");
+
+      const cleanPassword = password.trim();
+      if (!cleanPassword) {
+        setError("Enter password first.");
+        return;
+      }
+
+      const wallet = ethers.Wallet.createRandom();
+
+      await saveEncryptedWallet(
+        {
+          address: wallet.address,
+          privateKey: wallet.privateKey,
+        },
+        cleanPassword
+      );
+
+      setWalletAddress(wallet.address);
+      setPrivateKey("");
+      setIsUnlocked(false);
+      setEthBalance("0.0000");
+      setUsdtBalance("0.00");
+      setSuccess("Wallet created securely! Unlock it to send transactions.");
+    } catch (err) {
+      console.error(err);
+      setError("Failed to create wallet.");
+    }
+  };
+
+  const loadWalletData = useCallback(async (addressOverride?: string) => {
     setLoadingBalances(true);
     setError("");
 
     try {
-      const localWallet = readLocalWallet();
+      const address = addressOverride || getEncryptedWalletAddress() || "";
 
-      if (!localWallet?.address) {
+      if (!address) {
         setWalletAddress("");
         setPrivateKey("");
         setEthBalance("0.0000");
         setUsdtBalance("0.00");
-        setError("No local wallet found.");
         return;
       }
 
-      const address = localWallet.address.trim();
-      const pk = (localWallet.privateKey || "").trim();
-
       setWalletAddress(address);
-      setPrivateKey(pk);
 
-      const usdtContract = new ethers.Contract(USDT_CONTRACT, erc20Abi, provider);
+      const usdtContract = new ethers.Contract(
+        USDT_CONTRACT,
+        erc20Abi,
+        provider
+      );
 
       const [ethRaw, usdtRaw, decimals, symbol] = await Promise.all([
         provider.getBalance(address),
@@ -152,7 +169,40 @@ export default function StandaloneCWalletDashboard() {
     }
   }, []);
 
+  const unlockWallet = async () => {
+    try {
+      setError("");
+      setSuccess("");
+
+      const cleanPassword = password.trim();
+      if (!cleanPassword) {
+        setError("Enter your wallet password");
+        return;
+      }
+
+      const unlocked = await unlockEncryptedWallet(cleanPassword);
+
+      setWalletAddress(unlocked.address);
+      setPrivateKey(unlocked.privateKey);
+      setIsUnlocked(true);
+      setSuccess("Wallet unlocked successfully!");
+
+      await loadWalletData(unlocked.address);
+    } catch (err: any) {
+      console.error("UNLOCK ERROR:", err);
+      setIsUnlocked(false);
+      setPrivateKey("");
+      setError("Wrong password or encrypted wallet not found.");
+    }
+  };
+
   useEffect(() => {
+    if (hasEncryptedWallet()) {
+      const address = getEncryptedWalletAddress();
+      if (address) {
+        setWalletAddress(address);
+      }
+    }
     loadWalletData();
   }, [loadWalletData]);
 
@@ -162,8 +212,13 @@ export default function StandaloneCWalletDashboard() {
     setLastTxHash("");
 
     try {
-      if (!walletAddress || !privateKey) {
-        setError("No local wallet loaded.");
+      if (!isUnlocked || !privateKey) {
+        setError("Unlock wallet first.");
+        return;
+      }
+
+      if (!walletAddress) {
+        setError("No wallet loaded.");
         return;
       }
 
@@ -225,7 +280,7 @@ export default function StandaloneCWalletDashboard() {
       setSuccess("Transaction sent successfully!");
       setRecipient("");
       setEthAmount("");
-      await loadWalletData();
+      await loadWalletData(signer.address);
     } catch (err: any) {
       console.error(err);
       setError(err?.shortMessage || err?.message || "Transaction failed.");
@@ -316,15 +371,45 @@ export default function StandaloneCWalletDashboard() {
                 </p>
               </div>
               <button
-                onClick={loadWalletData}
+                type="button"
+                onClick={() => loadWalletData()}
                 className="rounded-full border border-cyan-400/25 bg-cyan-500/15 px-3 py-1.5 text-[10px] font-semibold text-cyan-200"
               >
                 {loadingBalances ? "Loading" : "Connected"}
               </button>
             </div>
 
+            <div className="mb-3 space-y-2">
+              <input
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="Wallet password"
+                className="w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+              />
+
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={createWallet}
+                  className="rounded-2xl border border-emerald-400/25 bg-emerald-500/15 px-4 py-3 text-sm font-semibold text-emerald-200"
+                >
+                  Create
+                </button>
+
+                <button
+                  type="button"
+                  onClick={unlockWallet}
+                  className="rounded-2xl border border-cyan-400/25 bg-cyan-500/15 px-4 py-3 text-sm font-semibold text-cyan-200"
+                >
+                  Unlock
+                </button>
+              </div>
+            </div>
+
             <div className="mb-3 flex gap-2">
               <button
+                type="button"
                 onClick={() => setMarketChip("tokens")}
                 className={`rounded-full px-4 py-2 text-[11px] font-medium ${
                   marketChip === "tokens"
@@ -335,6 +420,7 @@ export default function StandaloneCWalletDashboard() {
                 Tokens
               </button>
               <button
+                type="button"
                 onClick={() => setMarketChip("perps")}
                 className={`rounded-full px-4 py-2 text-[11px] font-medium ${
                   marketChip === "perps"
@@ -345,6 +431,7 @@ export default function StandaloneCWalletDashboard() {
                 Perps
               </button>
               <button
+                type="button"
                 onClick={() => setMarketChip("stocks")}
                 className={`rounded-full px-4 py-2 text-[11px] font-medium ${
                   marketChip === "stocks"
@@ -408,6 +495,7 @@ export default function StandaloneCWalletDashboard() {
             <div className="mt-4 rounded-[24px] border border-white/8 bg-[#0a1821] p-3">
               <div className="mb-3 flex gap-2">
                 <button
+                  type="button"
                   onClick={() => setActiveTab("send")}
                   className={`rounded-full px-4 py-2 text-xs font-medium ${
                     activeTab === "send"
@@ -419,6 +507,7 @@ export default function StandaloneCWalletDashboard() {
                 </button>
 
                 <button
+                  type="button"
                   onClick={() => setActiveTab("receive")}
                   className={`rounded-full px-4 py-2 text-xs font-medium ${
                     activeTab === "receive"
@@ -457,6 +546,7 @@ export default function StandaloneCWalletDashboard() {
                   </div>
 
                   <button
+                    type="button"
                     onClick={handleSendEth}
                     disabled={sending}
                     className="w-full rounded-2xl border border-cyan-400/25 bg-cyan-500/20 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-60"
@@ -480,6 +570,7 @@ export default function StandaloneCWalletDashboard() {
                   </div>
 
                   <button
+                    type="button"
                     onClick={() => copyToClipboard(walletAddress)}
                     className="w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-medium text-white"
                   >
