@@ -13,7 +13,7 @@ import {
 
 const ETH_RPC_URL =
   process.env.NEXT_PUBLIC_ETH_RPC_URL ||
-  "https://eth-mainnet.g.alchemy.com/v2/gaZRkg_BK7Eou-s9f5NpV";
+  https://eth-mainnet.g.alchemy.com/v2/gaZRkg_BK7Eou-s9f5NpV
 
 const provider = new ethers.JsonRpcProvider(ETH_RPC_URL);
 
