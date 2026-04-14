@@ -45,10 +45,18 @@ export type SecureWalletPayload = {
   privateKey: string;
 };
 
+function canUseBrowserStorage() {
+  return typeof window !== "undefined" && typeof localStorage !== "undefined";
+}
+
 export async function saveEncryptedWallet(
   payload: SecureWalletPayload,
   password: string
 ) {
+  if (!canUseBrowserStorage()) {
+    throw new Error("Browser storage is not available.");
+  }
+
   const encoder = new TextEncoder();
 
   const salt = crypto.getRandomValues(
@@ -78,6 +86,10 @@ export async function saveEncryptedWallet(
 }
 
 export async function unlockEncryptedWallet(password: string) {
+  if (!canUseBrowserStorage()) {
+    throw new Error("Browser storage is not available.");
+  }
+
   const raw = localStorage.getItem(ENCRYPTED_WALLET_KEY);
   if (!raw) {
     throw new Error("No encrypted wallet found.");
@@ -108,6 +120,8 @@ export async function unlockEncryptedWallet(password: string) {
 }
 
 export function getEncryptedWalletAddress(): string | null {
+  if (!canUseBrowserStorage()) return null;
+
   try {
     const raw = localStorage.getItem(ENCRYPTED_WALLET_KEY);
     if (!raw) return null;
@@ -119,9 +133,11 @@ export function getEncryptedWalletAddress(): string | null {
 }
 
 export function hasEncryptedWallet(): boolean {
+  if (!canUseBrowserStorage()) return false;
   return !!localStorage.getItem(ENCRYPTED_WALLET_KEY);
 }
 
 export function clearEncryptedWallet() {
+  if (!canUseBrowserStorage()) return;
   localStorage.removeItem(ENCRYPTED_WALLET_KEY);
 }
