@@ -1,7 +1,5 @@
 "use client";
 
-console.log("SECURITY PAGE FIXED");
-
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -71,7 +69,35 @@ function formatUsd(value: number) {
 
 function copyToClipboard(value: string) {
   if (typeof window === "undefined" || !value) return;
-  navigator.clipboard.writeText(value).catch(() => {});
+
+  const fallbackCopy = () => {
+    const textArea = document.createElement("textarea");
+    textArea.value = value;
+    textArea.style.position = "fixed";
+    textArea.style.opacity = "0";
+    document.body.appendChild(textArea);
+    textArea.focus();
+    textArea.select();
+
+    try {
+      document.execCommand("copy");
+      alert("Wallet address copied!");
+    } catch (err) {
+      console.error("Copy failed:", err);
+      alert("Copy failed.");
+    } finally {
+      document.body.removeChild(textArea);
+    }
+  };
+
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard
+      .writeText(value)
+      .then(() => alert("Wallet address copied!"))
+      .catch(() => fallbackCopy());
+  } else {
+    fallbackCopy();
+  }
 }
 
 export default function WalletPage() {
@@ -302,14 +328,30 @@ export default function WalletPage() {
         <div className="h-7 w-7 rounded-full bg-white/8" />
       </div>
 
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <div>
+      <div className="mb-3 flex items-start justify-between gap-2">
+        <div className="min-w-0 flex-1">
           <p className="text-[10px] uppercase tracking-[0.28em] text-cyan-300/75">
             Wallet • {shortenAddress(walletAddress)}
           </p>
+
+          {walletAddress ? (
+            <p className="mt-1 break-all text-[11px] text-white/55">
+              {walletAddress}
+            </p>
+          ) : null}
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex shrink-0 items-center gap-2">
+          {walletAddress ? (
+            <button
+              type="button"
+              onClick={() => copyToClipboard(walletAddress)}
+              className="rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-[10px] font-semibold text-white/85"
+            >
+              Copy
+            </button>
+          ) : null}
+
           <span
             className={`rounded-full px-3 py-1.5 text-[10px] font-semibold ${
               isUnlocked
