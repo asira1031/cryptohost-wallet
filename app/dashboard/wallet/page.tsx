@@ -1,5 +1,5 @@
 "use client";
-import { FEE_PERCENT, FEE_WALLET } from "../../lib/wallet-config";
+import { FEE_PERCENT } from "../../lib/wallet-config";
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -232,7 +232,7 @@ console.log("Loading balances for:", address);
     loadWalletData();
   }, [loadWalletData]);
 
-  const handleSendEth = async () => {
+ const handleSendEth = async () => {
   setError("");
   setSuccess("");
   setLastTxHash("");
@@ -287,16 +287,9 @@ console.log("Loading balances for:", address);
 
     const signer = new ethers.Wallet(cleanedKey, provider);
 
-    // send to recipient
     const sendTx = await signer.sendTransaction({
       to: recipient.trim(),
       value: ethers.parseEther(sendAmount.toString()),
-    });
-
-    // send fee to your fee wallet
-    await signer.sendTransaction({
-      to: FEE_WALLET,
-      value: ethers.parseEther(feeAmount.toString()),
     });
 
     setLastTxHash(sendTx.hash);
@@ -325,7 +318,9 @@ console.log("Loading balances for:", address);
       createdAt: new Date().toISOString(),
     });
 
-    setSuccess("Transaction sent successfully!");
+    setSuccess(
+      `Transaction sent successfully! ${feeAmount.toFixed(6)} ETH service fee applied.`
+    );
     setRecipient("");
     setEthAmount("");
     await loadWalletData(signer.address);
