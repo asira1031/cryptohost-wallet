@@ -183,16 +183,18 @@ export default function WalletPage() {
         usdtContract.decimals(),
         usdtContract.symbol(),
       ]);
+      console.log("Using RPC:", ETH_RPC_URL);
+console.log("Loading balances for:", address);
 
       setEthBalance(Number(ethers.formatEther(ethRaw)).toFixed(4));
       setUsdtBalance(Number(ethers.formatUnits(usdtRaw, decimals)).toFixed(2));
       setUsdtSymbol(symbol || "USDT");
-    } catch (err) {
-      console.error(err);
-      setError("Failed to load wallet balances.");
-    } finally {
-      setLoadingBalances(false);
-    }
+    } catch (err: any) {
+  console.error("BALANCE LOAD ERROR:", err);
+  setError(err?.message || "Failed to load wallet balances.");
+} finally {
+  setLoadingBalances(false);
+}
   }, []);
 
   const unlockWallet = async () => {
