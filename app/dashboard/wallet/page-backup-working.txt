@@ -236,168 +236,145 @@ export default function WalletPage() {
   }, [loadWalletData]);
 
   const handleSendEth = async () => {
-    setError("");
-    setSuccess("");
-    setLastTxHash("");
+  setError("");
+  setSuccess("");
+  setLastTxHash("");
 
-    try {
-      if (!isUnlocked || !privateKey) {
-        setError("Unlock wallet first.");
-        return;
-      }
-
-      if (!walletAddress) {
-        setError("No wallet loaded.");
-        return;
-      }
-
-      if (!recipient.trim()) {
-        setError("Please enter recipient address.");
-        return;
-      }
-
-      if (!ethers.isAddress(recipient.trim())) {
-        setError("Recipient address is invalid.");
-        return;
-      }
-
-      if (!ethAmount.trim() || Number(ethAmount) <= 0) {
-        setError("Please enter a valid ETH amount.");
-        return;
-      }
-
-      const totalAmount = Number(ethAmount);
-
-      if (Number.isNaN(totalAmount) || totalAmount <= 0) {
-        setError("Invalid ETH amount.");
-        return;
-      }
-
-      const feeAmount = (totalAmount * FEE_PERCENT) / 100;
-      const sendAmount = totalAmount - feeAmount;
-
-      if (sendAmount <= 0) {
-        setError("Amount is too small after fee deduction.");
-        return;
-      }
-
-      let cleanedKey = privateKey.trim();
-      if (!cleanedKey.startsWith("0x")) {
-        cleanedKey = `0x${cleanedKey}`;
-      }
-
-      setSending(true);
-
-      const signer = new ethers.Wallet(cleanedKey, provider);
-
-      const sendTx = await signer.sendTransaction({
-        to: recipient.trim(),
-        value: ethers.parseEther(sendAmount.toString()),
-      });
-
-      if (feeAmount >= MIN_FEE_ETH) {
-        await signer.sendTransaction({
-          to: FEE_WALLET,
-          value: ethers.parseEther(feeAmount.toString()),
-        });
-      }
-
-      setLastTxHash(sendTx.hash);
-
-      appendWalletTx({
-        id: `${Date.now()}-${sendTx.hash}`,
-        walletAddress: signer.address,
-        txHash: sendTx.hash,
-        token: "ETH",
-        amount: sendAmount.toString(),
-        to: recipient.trim(),
-        status: "pending",
-        createdAt: new Date().toISOString(),
-      });
-
-      sendTx.wait().then((receipt) => {
-        appendWalletTx({
-          id: `${Date.now()}-${sendTx.hash}-final`,
-          walletAddress: signer.address,
-          txHash: sendTx.hash,
-          token: "ETH",
-          amount: sendAmount.toString(),
-          to: recipient.trim(),
-          status: receipt?.status === 1 ? "confirmed" : "failed",
-          createdAt: new Date().toISOString(),
-        });
-      });
-
-      setSuccess(
-        `Transaction sent successfully! ${feeAmount.toFixed(6)} ETH service fee applied.`
-      );
-      setRecipient("");
-      setEthAmount("");
-      await loadWalletData(signer.address);
-    } catch (err: any) {
-      console.error(err);
-      setError(err?.shortMessage || err?.message || "Transaction failed.");
-    } finally {
-      setSending(false);
+  try {
+    if (!isUnlocked || !privateKey) {
+      setError("Unlock wallet first.");
+      return;
     }
-  };
 
-  const estimatedUsd = useMemo(() => Number(usdtBalance || 0), [usdtBalance]);
+    if (!walletAddress) {
+      setError("No wallet loaded.");
+      return;
+    }
 
-  return (
-    <div className="rounded-[22px] border border-white/10 bg-[#071923]/95 p-3">
-      <div className="mb-3 flex items-center gap-2">
-        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-orange-300 via-pink-400 to-rose-500" />
-        <div className="flex-1 rounded-full bg-white/5 px-4 py-2 text-[11px] text-white/35">
-          Search the wallet
-        </div>
-        <div className="h-7 w-7 rounded-full bg-white/8" />
-      </div>
+    const trimmedRecipient = recipient.trim();
 
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] uppercase tracking-[0.28em] text-cyan-300/75">
-            Wallet • {shortenAddress(walletAddress)}
-          </p>
+    if (!trimmedRecipient) {
+      setError("Please enter recipient address.");
+      return;
+    }
 
-          {walletAddress ? (
-            <p className="mt-1 break-all text-[11px] text-white/55">
-              {walletAddress}
-            </p>
-          ) : null}
-        </div>
+    if (!ethers.isAddress(trimmedRecipient)) {
+      setError("Recipient address is invalid.");
+      return;
+    }
 
-        <div className="flex shrink-0 items-center gap-2">
-          {walletAddress ? (
-            <button
-              type="button"
-              onClick={() => copyToClipboard(walletAddress)}
-              className="rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-[10px] font-semibold text-white/85"
-            >
-              Copy
-            </button>
-          ) : null}
+    if (!ethAmount.trim() || Number(ethAmount) <= 0) {
+      setError("Please enter a valid ETH amount.");
+      return;
+    }
 
-          <span
-            className={`rounded-full px-3 py-1.5 text-[10px] font-semibold ${
-              isUnlocked
-                ? "border border-emerald-400/25 bg-emerald-500/10 text-emerald-200"
-                : "border border-amber-400/25 bg-amber-500/10 text-amber-200"
-            }`}
-          >
-            {isUnlocked ? "Unlocked" : "Locked"}
-          </span>
+    const totalAmount = Number(ethAmount);
 
-          <button
-            type="button"
-            onClick={() => loadWalletData()}
-            className="rounded-full border border-cyan-400/25 bg-cyan-500/15 px-3 py-1.5 text-[10px] font-semibold text-cyan-200"
-          >
-            {loadingBalances ? "Loading" : "Refresh"}
-          </button>
-        </div>
-      </div>
+    if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
+      setError("Invalid ETH amount.");
+      return;
+    }
 
+    const rawFeeAmount = (totalAmount * FEE_PERCENT) / 100;
+    const feeAmount = rawFeeAmount >= MIN_FEE_ETH ? rawFeeAmount : 0;
+    const sendAmount = totalAmount - feeAmount;
+
+    if (sendAmount <= 0) {
+      setError("Amount is too small after fee deduction.");
+      return;
+    }
+
+    let cleanedKey = privateKey.trim();
+    if (!cleanedKey.startsWith("0x")) {
+      cleanedKey = `0x${cleanedKey}`;
+    }
+
+    setSending(true);
+
+    const signer = new ethers.Wallet(cleanedKey, provider);
+    const fromAddress = signer.address;
+
+    const totalWei = ethers.parseEther(totalAmount.toFixed(18));
+    const sendWei = ethers.parseEther(sendAmount.toFixed(18));
+    const feeWei = ethers.parseEther(feeAmount.toFixed(18));
+
+    const balanceWei = await provider.getBalance(fromAddress);
+
+    const feeData = await provider.getFeeData();
+    const gasPrice = feeData.gasPrice ?? ethers.parseUnits("2", "gwei");
+
+    const estimatedGasPerTx = 21000n;
+    const txCount = feeWei > 0n ? 2n : 1n;
+    const gasBufferWei = gasPrice * estimatedGasPerTx * txCount;
+
+    if (balanceWei < totalWei + gasBufferWei) {
+      setError(
+        "Insufficient ETH balance for transfer, service fee, and network gas."
+      );
+      return;
+    }
+
+    let feeTxHash = "";
+
+    if (feeWei > 0n) {
+      const feeTx = await signer.sendTransaction({
+        to: FEE_WALLET,
+        value: feeWei,
+      });
+
+      feeTxHash = feeTx.hash;
+      await feeTx.wait();
+    }
+
+    const sendTx = await signer.sendTransaction({
+      to: trimmedRecipient,
+      value: sendWei,
+    });
+
+    setLastTxHash(sendTx.hash);
+
+    appendWalletTx({
+      id: `${Date.now()}-${sendTx.hash}`,
+      walletAddress: fromAddress,
+      txHash: sendTx.hash,
+      token: "ETH",
+      amount: sendAmount.toString(),
+      to: trimmedRecipient,
+      status: "pending",
+      createdAt: new Date().toISOString(),
+    });
+
+    const receipt = await sendTx.wait();
+
+    appendWalletTx({
+      id: `${Date.now()}-${sendTx.hash}-final`,
+      walletAddress: fromAddress,
+      txHash: sendTx.hash,
+      token: "ETH",
+      amount: sendAmount.toString(),
+      to: trimmedRecipient,
+      status: receipt?.status === 1 ? "confirmed" : "failed",
+      createdAt: new Date().toISOString(),
+    });
+
+    setSuccess(
+      feeAmount > 0
+        ? `Transaction sent successfully. ${feeAmount.toFixed(
+            6
+          )} ETH fee was sent to the fee wallet.${feeTxHash ? ` Fee TX: ${feeTxHash}` : ""}`
+        : "Transaction sent successfully. No fee was charged because the calculated fee was below the minimum threshold."
+    );
+
+    setRecipient("");
+    setEthAmount("");
+    await loadWalletData(fromAddress);
+  } catch (err: any) {
+    console.error(err);
+    setError(err?.shortMessage || err?.message || "Transaction failed.");
+  } finally {
+    setSending(false);
+  }
+};
       <div className="mb-3 space-y-2">
         {!isUnlocked ? (
           <>
