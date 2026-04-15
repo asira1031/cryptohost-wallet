@@ -13,6 +13,7 @@ import {
 } from "@/app/lib/wallet-security";
 import { provider } from "../../lib/wallet-provider";
 import { isAuthEnabled, verifyPin } from "@/app/lib/cryptohost-auth";
+import { supabase } from "@/app/lib/supabase/client";
 
 const MIN_FEE_ETH = 0.00002;
 const USDT_CONTRACT = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
@@ -33,6 +34,7 @@ const erc20WriteAbi = [
 type TabKey = "send" | "receive";
 type TxStatus = "pending" | "confirmed" | "failed";
 type SendAsset = "ETH" | "USDT" | "BNB";
+type SecurityMethod = "email" | "phone" | "biometric" | null;
 
 type WalletTx = {
   id: string;
@@ -87,7 +89,7 @@ function copyToClipboard(value: string) {
 
     try {
       document.execCommand("copy");
-      alert("Wallet address copied!");
+      alert("Copied!");
     } catch (err) {
       console.error("Copy failed:", err);
       alert("Copy failed.");
@@ -97,10 +99,9 @@ function copyToClipboard(value: string) {
   };
 
   if (navigator.clipboard && window.isSecureContext) {
-    navigator.clipboard
-      .writeText(value)
-      .then(() => alert("Wallet address copied!"))
-      .catch(() => fallbackCopy());
+    navigator.clipboard.writeText(value).then(() => {
+      alert("Copied!");
+    }).catch(() => fallbackCopy());
   } else {
     fallbackCopy();
   }
@@ -109,9 +110,13 @@ function copyToClipboard(value: string) {
 export default function WalletPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("send");
   const [selectedAsset, setSelectedAsset] = useState<SendAsset>("ETH");
+  const [preferredMethod, setPreferredMethod] = useState<SecurityMethod>(null);
 
   const [walletAddress, setWalletAddress] = useState("");
   const [privateKey, setPrivateKey] = useState("");
+  const [mnemonic, setMnemonic] = useState("");
+  const [showSecrets, setShowSecrets] = useState(false);
+
   const [ethBalance, setEthBalance] = useState("0.0000");
   const [usdtBalance, setUsdtBalance] = useState("0.00");
   const [usdtSymbol, setUsdtSymbol] = useState("USDT");
@@ -128,16 +133,23 @@ export default function WalletPage() {
   const [transactionPin, setTransactionPin] = useState("");
   const [pendingSend, setPendingSend] = useState(false);
 
+  const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [otpSent, setOtpSent] = useState(false);
   const [otpVerified, setOtpVerified] = useState(false);
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [verifyingOtp, setVerifyingOtp] = useState(false);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [lastTxHash, setLastTxHash] = useState("");
 
   const isValidPhone = (num: string) => /^\+[1-9]\d{7,14}$/.test(num);
+
+  const biometricSupported =
+    typeof window !== "undefined" &&
+    typeof window.PublicKeyCredential !== "undefined";
 
   const createWallet = async () => {
     try {
@@ -151,24 +163,27 @@ export default function WalletPage() {
       }
 
       const wallet = ethers.Wallet.createRandom();
+      const phrase = (wallet as any).mnemonic?.phrase || "";
 
       await saveEncryptedWallet(
         {
           address: wallet.address,
           privateKey: wallet.privateKey,
-          ...(wallet && (wallet as any).mnemonic?.phrase
-            ? { mnemonic: (wallet as any).mnemonic.phrase }
-            : {}),
+          ...(phrase ? { mnemonic: phrase } : {}),
         },
         cleanPassword
       );
 
       setWalletAddress(wallet.address);
-      setPrivateKey("");
+      setPrivateKey(wallet.privateKey);
+      setMnemonic(phrase);
+      setShowSecrets(true);
       setIsUnlocked(false);
       setEthBalance("0.0000");
       setUsdtBalance("0.00");
-      setSuccess("Wallet created securely! Unlock it to send transactions.");
+      setSuccess(
+        "Wallet created securely! Backup your private key and recovery phrase before continuing."
+      );
     } catch (err) {
       console.error(err);
       setError("Failed to create wallet.");
@@ -230,8 +245,10 @@ export default function WalletPage() {
       const unlocked = await unlockEncryptedWallet(cleanPassword);
 
       setWalletAddress(unlocked.address);
-      setPrivateKey(unlocked.privateKey);
+      setPrivateKey(unlocked.privateKey || "");
+      setMnemonic((unlocked as any).mnemonic || "");
       setIsUnlocked(true);
+      setShowSecrets(false);
       setPassword("");
       setSuccess("Wallet unlocked successfully!");
 
@@ -240,6 +257,7 @@ export default function WalletPage() {
       console.error("UNLOCK ERROR:", err);
       setIsUnlocked(false);
       setPrivateKey("");
+      setMnemonic("");
       setError("Wrong password or encrypted wallet not found.");
     }
   };
@@ -251,38 +269,178 @@ export default function WalletPage() {
         setWalletAddress(address);
       }
     }
-    loadWalletData();
+    void loadWalletData();
   }, [loadWalletData]);
 
-  const sendOtp = () => {
-    setError("");
-    setSuccess("");
+  useEffect(() => {
+    const savedMethod =
+      (localStorage.getItem("preferred_2fa_method") as SecurityMethod) || null;
+    setPreferredMethod(savedMethod);
 
-    if (!isValidPhone(phone.trim())) {
-      setError(
-        "Enter a valid global phone number with country code (example: +14155552671)."
-      );
-      return;
+    const savedPhone = localStorage.getItem("user_phone_number") || "";
+    if (savedPhone) {
+      setPhone(savedPhone);
     }
 
-    setOtpSent(true);
-    setOtpVerified(false);
-    setOtpCode("");
-    setSuccess("Demo OTP sent. Use 123456 to verify.");
+    const loadUser = async () => {
+      const { data } = await supabase.auth.getUser();
+      if (data.user?.email) {
+        setEmail(data.user.email);
+      }
+    };
+
+    void loadUser();
+  }, []);
+
+  const sendOtp = async () => {
+    try {
+      setError("");
+      setSuccess("");
+      setSendingOtp(true);
+      setOtpVerified(false);
+      setOtpCode("");
+
+      if (!preferredMethod) {
+        setError("Select a security method first in Security settings.");
+        return;
+      }
+
+      if (preferredMethod === "biometric") {
+        setError(
+          biometricSupported
+            ? "Biometric / passkey transaction approval is not yet connected here."
+            : "Biometric / passkey is not available on this device."
+        );
+        return;
+      }
+
+      if (preferredMethod === "email") {
+        if (!email.trim()) {
+          setError("No email found for this account.");
+          return;
+        }
+
+        const { error: otpError } = await supabase.auth.signInWithOtp({
+          email: email.trim(),
+          options: {
+            shouldCreateUser: false,
+          },
+        });
+
+        if (otpError) {
+          setError(otpError.message);
+          return;
+        }
+
+        setOtpSent(true);
+        setSuccess("Verification code sent to your email.");
+        return;
+      }
+
+      if (preferredMethod === "phone") {
+        if (!phone.trim()) {
+          setError("Enter your phone number first.");
+          return;
+        }
+
+        if (!isValidPhone(phone.trim())) {
+          setError(
+            "Enter a valid global phone number with country code (example: +14155552671)."
+          );
+          return;
+        }
+
+        const cleanPhone = phone.trim();
+        localStorage.setItem("user_phone_number", cleanPhone);
+
+        const { error: otpError } = await supabase.auth.signInWithOtp({
+          phone: cleanPhone,
+          options: {
+            shouldCreateUser: false,
+          },
+        });
+
+        if (otpError) {
+          setError(otpError.message);
+          return;
+        }
+
+        setOtpSent(true);
+        setSuccess("Verification code sent to your phone.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "Failed to send verification code.");
+    } finally {
+      setSendingOtp(false);
+    }
   };
 
-  const verifyOtp = () => {
-    setError("");
-    setSuccess("");
+  const verifyOtp = async () => {
+    try {
+      setError("");
+      setSuccess("");
+      setVerifyingOtp(true);
 
-    if (otpCode.trim() === "123456") {
-      setOtpVerified(true);
-      setSuccess("OTP verified. You can now send.");
-      return;
+      if (!preferredMethod) {
+        setError("No verification method selected.");
+        return;
+      }
+
+      if (!otpCode.trim()) {
+        setError("Enter the verification code.");
+        return;
+      }
+
+      if (preferredMethod === "email") {
+        if (!email.trim()) {
+          setError("No email found for this account.");
+          return;
+        }
+
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          email: email.trim(),
+          token: otpCode.trim(),
+          type: "email",
+        });
+
+        if (verifyError) {
+          setError(verifyError.message);
+          return;
+        }
+
+        setOtpVerified(true);
+        return;
+      }
+
+      if (preferredMethod === "phone") {
+        if (!phone.trim()) {
+          setError("Enter your phone number first.");
+          return;
+        }
+
+        const { error: verifyError } = await supabase.auth.verifyOtp({
+          phone: phone.trim(),
+          token: otpCode.trim(),
+          type: "sms",
+        });
+
+        if (verifyError) {
+          setError(verifyError.message);
+          return;
+        }
+
+        setOtpVerified(true);
+        return;
+      }
+
+      setError("Biometric / passkey transaction approval is not yet connected here.");
+    } catch (err: any) {
+      console.error(err);
+      setError(err?.message || "Failed to verify code.");
+    } finally {
+      setVerifyingOtp(false);
     }
-
-    setOtpVerified(false);
-    setError("Invalid OTP.");
   };
 
   const handleSendAsset = async () => {
@@ -719,38 +877,70 @@ export default function WalletPage() {
               />
             </div>
 
-            <div>
-              <label className="mb-2 block text-sm text-white/65">
-                Phone Number
-              </label>
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value)}
-                placeholder="+1234567890 (include country code)"
-                className="w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
-              />
+            <div className="rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white/80">
+              Security method:{" "}
+              <span className="font-semibold text-white">
+                {preferredMethod === "email" && "Email OTP"}
+                {preferredMethod === "phone" && "Phone OTP"}
+                {preferredMethod === "biometric" && "Biometric / Passkey"}
+                {!preferredMethod && "Not selected"}
+              </span>
             </div>
+
+            {preferredMethod === "email" ? (
+              <div>
+                <label className="mb-2 block text-sm text-white/65">
+                  Email
+                </label>
+                <input
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="Email"
+                  className="w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+                />
+              </div>
+            ) : null}
+
+            {preferredMethod === "phone" ? (
+              <div>
+                <label className="mb-2 block text-sm text-white/65">
+                  Phone Number
+                </label>
+                <input
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+1234567890 (include country code)"
+                  className="w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+                />
+              </div>
+            ) : null}
 
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={sendOtp}
-                className="rounded-2xl border border-blue-400/25 bg-blue-500/20 px-4 py-3 text-sm font-semibold text-blue-100"
+                disabled={sendingOtp || preferredMethod === "biometric" || !preferredMethod}
+                className="rounded-2xl border border-blue-400/25 bg-blue-500/20 px-4 py-3 text-sm font-semibold text-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Send OTP
+                {sendingOtp ? "Sending..." : "Send OTP"}
               </button>
 
               <button
                 type="button"
                 onClick={verifyOtp}
-                disabled={!otpSent}
+                disabled={
+                  verifyingOtp ||
+                  !otpSent ||
+                  preferredMethod === "biometric" ||
+                  !preferredMethod
+                }
                 className="rounded-2xl border border-emerald-400/25 bg-emerald-500/20 px-4 py-3 text-sm font-semibold text-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                Verify OTP
+                {verifyingOtp ? "Verifying..." : "Verify OTP"}
               </button>
             </div>
 
-            {otpSent ? (
+            {preferredMethod !== "biometric" && otpSent ? (
               <input
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value)}
@@ -765,10 +955,18 @@ export default function WalletPage() {
               </div>
             ) : null}
 
+            {preferredMethod === "biometric" ? (
+              <div className="rounded-2xl border border-yellow-500/25 bg-yellow-500/10 px-4 py-3 text-sm text-yellow-200">
+                {biometricSupported
+                  ? "Biometric / passkey transaction approval is not yet connected in the wallet send flow."
+                  : "Biometric / passkey is not available on this device or browser."}
+              </div>
+            ) : null}
+
             <button
               type="button"
               onClick={startProtectedSend}
-              disabled={sending || !isUnlocked}
+              disabled={sending || !isUnlocked || !otpVerified}
               className="w-full rounded-2xl border border-cyan-400/25 bg-cyan-500/20 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {!isUnlocked
@@ -802,6 +1000,74 @@ export default function WalletPage() {
             </button>
           </div>
         )}
+
+        {isUnlocked ? (
+          <div className="mt-3 space-y-3 rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-sm font-semibold text-yellow-200">
+                Backup & Recovery
+              </p>
+
+              <button
+                type="button"
+                onClick={() => setShowSecrets((prev) => !prev)}
+                className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium text-white"
+              >
+                {showSecrets ? "Hide" : "Show"}
+              </button>
+            </div>
+
+            {showSecrets ? (
+              <div className="space-y-3">
+                <div className="rounded-2xl border border-white/10 bg-[#06131b] p-3">
+                  <p className="mb-2 text-[10px] uppercase tracking-[0.22em] text-white/45">
+                    Private Key
+                  </p>
+                  <p className="break-all text-sm text-white/85">
+                    {privateKey || "No private key available"}
+                  </p>
+
+                  {privateKey ? (
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(privateKey)}
+                      className="mt-3 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium text-white"
+                    >
+                      Copy Private Key
+                    </button>
+                  ) : null}
+                </div>
+
+                <div className="rounded-2xl border border-white/10 bg-[#06131b] p-3">
+                  <p className="mb-2 text-[10px] uppercase tracking-[0.22em] text-white/45">
+                    Recovery Phrase
+                  </p>
+                  <p className="break-words text-sm text-white/85">
+                    {mnemonic || "No recovery phrase saved for this wallet"}
+                  </p>
+
+                  {mnemonic ? (
+                    <button
+                      type="button"
+                      onClick={() => copyToClipboard(mnemonic)}
+                      className="mt-3 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium text-white"
+                    >
+                      Copy Recovery Phrase
+                    </button>
+                  ) : null}
+                </div>
+
+                <div className="rounded-2xl border border-red-500/20 bg-red-500/10 p-3 text-xs text-red-200">
+                  Never share your private key or recovery phrase. Store them offline in a safe place.
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-white/70">
+                Your private key and recovery phrase are hidden. Reveal only when you are ready to back them up safely.
+              </div>
+            )}
+          </div>
+        ) : null}
 
         {(error || success || lastTxHash) && (
           <div className="mt-3 space-y-2">
