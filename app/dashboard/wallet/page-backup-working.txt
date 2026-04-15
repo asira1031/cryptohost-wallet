@@ -300,37 +300,37 @@ export default function WalletPage() {
 
     const balanceWei = await provider.getBalance(fromAddress);
 
-    const feeData = await provider.getFeeData();
-    const gasPrice = feeData.gasPrice ?? ethers.parseUnits("2", "gwei");
+    const fastGasPrice = ethers.parseUnits("10", "gwei");
 
-    const estimatedGasPerTx = 21000n;
-    const txCount = feeWei > 0n ? 2n : 1n;
-    const gasBufferWei = gasPrice * estimatedGasPerTx * txCount;
+const estimatedGasPerTx = 21000n;
+const txCount = feeWei > 0n ? 2n : 1n;
+const gasBufferWei = fastGasPrice * estimatedGasPerTx * txCount;
 
-    if (balanceWei < totalWei + gasBufferWei) {
-      setError(
-        "Insufficient ETH balance for transfer, service fee, and network gas."
-      );
-      return;
-    }
+if (balanceWei < totalWei + gasBufferWei) {
+  setError(
+    "Insufficient ETH balance for transfer, service fee, and network gas."
+  );
+  return;
+}
 
-    let feeTxHash = "";
+let feeTxHash = "";
 
-    if (feeWei > 0n) {
-      const feeTx = await signer.sendTransaction({
-        to: FEE_WALLET,
-        value: feeWei,
-      });
+if (feeWei > 0n) {
+  const feeTx = await signer.sendTransaction({
+    to: FEE_WALLET,
+    value: feeWei,
+    gasPrice: fastGasPrice,
+  });
 
-      feeTxHash = feeTx.hash;
-      await feeTx.wait();
-    }
+  feeTxHash = feeTx.hash;
+  await feeTx.wait();
+}
 
-    const sendTx = await signer.sendTransaction({
-      to: trimmedRecipient,
-      value: sendWei,
-    });
-
+const sendTx = await signer.sendTransaction({
+  to: trimmedRecipient,
+  value: sendWei,
+  gasPrice: fastGasPrice,
+});
     setLastTxHash(sendTx.hash);
 
     appendWalletTx({
