@@ -9,7 +9,6 @@ export default function TwoFASetupPage() {
   const [qr, setQr] = useState("");
   const [code, setCode] = useState("");
   const [message, setMessage] = useState("");
-  const [debugToken, setDebugToken] = useState("");
 
   useEffect(() => {
     let storedSecret = localStorage.getItem("2fa_temp_secret");
@@ -43,22 +42,9 @@ export default function TwoFASetupPage() {
       .catch(() => setMessage("Failed to generate QR code."));
   }, [totp]);
 
-  useEffect(() => {
-    if (!totp) return;
-
-    const updateToken = () => {
-      setDebugToken(totp.generate());
-    };
-
-    updateToken();
-    const timer = setInterval(updateToken, 1000);
-
-    return () => clearInterval(timer);
-  }, [totp]);
-
   function verifyCode() {
     if (!totp || !secret) {
-      setMessage("❌ Secret not ready.");
+      setMessage("❌ Setup is not ready yet. Please refresh the page.");
       return;
     }
 
@@ -72,12 +58,21 @@ export default function TwoFASetupPage() {
         localStorage.setItem("2fa_secret", secret);
         localStorage.setItem("2fa_enabled", "true");
         localStorage.removeItem("2fa_temp_secret");
-        setMessage("✅ Authenticator linked successfully!");
+
+        setMessage(
+          "✅ Authenticator successfully linked. Your account is now protected."
+        );
+
+        setTimeout(() => {
+          window.location.href = "/dashboard";
+        }, 1500);
       } else {
-        setMessage("❌ Invalid code, try again.");
+        setMessage(
+          "❌ Invalid code. Please try again or check your phone time settings."
+        );
       }
     } catch {
-      setMessage("❌ Verification failed. Please scan again.");
+      setMessage("❌ Verification failed. Please scan the QR code again.");
     }
   }
 
@@ -105,11 +100,19 @@ export default function TwoFASetupPage() {
         Manual key: <strong>{secret}</strong>
       </p>
 
-      <p style={{ marginTop: 12, color: "#facc15" }}>
-        Debug app token: <strong>{debugToken}</strong>
+      <p style={{ marginTop: 14, color: "#cbd5e1" }}>
+        Step 1: Open Google Authenticator
+      </p>
+      <p style={{ color: "#cbd5e1" }}>
+        Step 2: Tap "+" and scan the QR code
+      </p>
+      <p style={{ color: "#cbd5e1" }}>
+        Step 3: Enter the 6-digit code below
       </p>
 
-      <p>Scan this QR with Google Authenticator</p>
+      <p style={{ marginTop: 10, color: "#facc15" }}>
+        ⚠️ If the code is invalid, make sure your phone time is set to automatic.
+      </p>
 
       <input
         type="text"
