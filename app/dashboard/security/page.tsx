@@ -1,38 +1,83 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as QRCode from "qrcode";
-import { generateSecret, generateURI, verify } from "otplib";
+import * as OTPAuth from "otpauth";
 
 export default function TwoFASetupPage() {
-  const [secret, setSecret] = useState("");
+  const [secret, setSecret] = useState<string | null>(null);
   const [qr, setQr] = useState("");
   const [code, setCode] = useState("");
   const [message, setMessage] = useState("");
+  const [debugToken, setDebugToken] = useState("");
 
   useEffect(() => {
-    const newSecret = generateSecret();
-    setSecret(newSecret);
+    let storedSecret = localStorage.getItem("2fa_temp_secret");
 
-    const otpauth = `otpauth://totp/CryptoHost:user@cryptohost.com?secret=${newSecret}&issuer=CryptoHost`;
+    if (!storedSecret) {
+      storedSecret = new OTPAuth.Secret().base32;
+      localStorage.setItem("2fa_temp_secret", storedSecret);
+    }
 
-    QRCode.toDataURL(otpauth)
-      .then((url: string) => setQr(url))
-      .catch(() => setMessage("Failed to generate QR code."));
+    setSecret(storedSecret);
   }, []);
 
-  async function verifyCode() {
-    const result = await verify({
-      token: code,
-      secret,
-    });
+  const totp = useMemo(() => {
+    if (!secret) return null;
 
-    if (result.valid) {
-      localStorage.setItem("2fa_secret", secret);
-      localStorage.setItem("2fa_enabled", "true");
-      setMessage("✅ Authenticator linked successfully!");
-    } else {
-      setMessage("❌ Invalid code, try again.");
+    return new OTPAuth.TOTP({
+      issuer: "CryptoHost",
+      label: "user@cryptohost.com",
+      algorithm: "SHA1",
+      digits: 6,
+      period: 30,
+      secret: OTPAuth.Secret.fromBase32(secret),
+    });
+  }, [secret]);
+
+  useEffect(() => {
+    if (!totp) return;
+
+    QRCode.toDataURL(totp.toString())
+      .then((url: string) => setQr(url))
+      .catch(() => setMessage("Failed to generate QR code."));
+  }, [totp]);
+
+  useEffect(() => {
+    if (!totp) return;
+
+    const updateToken = () => {
+      setDebugToken(totp.generate());
+    };
+
+    updateToken();
+    const timer = setInterval(updateToken, 1000);
+
+    return () => clearInterval(timer);
+  }, [totp]);
+
+  function verifyCode() {
+    if (!totp || !secret) {
+      setMessage("❌ Secret not ready.");
+      return;
+    }
+
+    try {
+      const delta = totp.validate({
+        token: code.trim(),
+        window: 1,
+      });
+
+      if (delta !== null) {
+        localStorage.setItem("2fa_secret", secret);
+        localStorage.setItem("2fa_enabled", "true");
+        localStorage.removeItem("2fa_temp_secret");
+        setMessage("✅ Authenticator linked successfully!");
+      } else {
+        setMessage("❌ Invalid code, try again.");
+      }
+    } catch {
+      setMessage("❌ Verification failed. Please scan again.");
     }
   }
 
@@ -56,9 +101,14 @@ export default function TwoFASetupPage() {
         <p>Generating QR code...</p>
       )}
 
-<p style={{ marginTop: 12, color: "#cbd5e1" }}>
-  Manual key: <strong>{secret}</strong>
-</p>
+      <p style={{ marginTop: 12, color: "#cbd5e1" }}>
+        Manual key: <strong>{secret}</strong>
+      </p>
+
+      <p style={{ marginTop: 12, color: "#facc15" }}>
+        Debug app token: <strong>{debugToken}</strong>
+      </p>
+
       <p>Scan this QR with Google Authenticator</p>
 
       <input
