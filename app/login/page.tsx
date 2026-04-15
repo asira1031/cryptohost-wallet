@@ -29,11 +29,11 @@ export default function LoginPage() {
     } else {
       const is2FA = localStorage.getItem("2fa_enabled");
 
-if (is2FA === "true") {
-  router.push("/verify-2fa");
-} else {
-  router.push("/dashboard");
-}
+      if (is2FA === "true") {
+        router.push("/verify-2fa");
+      } else {
+        router.push("/dashboard/security");
+      }
     }
 
     setLoading(false);
@@ -94,9 +94,9 @@ if (is2FA === "true") {
               Create account
             </Link>
 
-            <span style={{ ...linkStyle, opacity: 0.6, cursor: "not-allowed" }}>
-              Forgot password? (coming soon)
-            </span>
+            <Link href="/forgot-password" style={linkStyle}>
+              Forgot password?
+            </Link>
           </div>
         </div>
       )}
