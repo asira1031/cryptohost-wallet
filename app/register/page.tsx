@@ -30,7 +30,7 @@ export default function RegisterPage() {
       email,
       password,
       options: {
-        emailRedirectTo: "https://cryptohost-wallet-dw3e.vercel.app/login",
+        emailRedirectTo: `${window.location.origin}/login`,
         data: {
           username,
         },
