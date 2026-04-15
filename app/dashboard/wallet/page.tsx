@@ -17,7 +17,14 @@ import { isAuthEnabled, verifyPin } from "@/app/lib/cryptohost-auth";
 const MIN_FEE_ETH = 0.00002;
 const USDT_CONTRACT = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
 
-const erc20Abi = [
+const erc20ReadAbi = [
+  "function balanceOf(address owner) view returns (uint256)",
+  "function decimals() view returns (uint8)",
+  "function symbol() view returns (string)",
+];
+
+const erc20WriteAbi = [
+  "function transfer(address to, uint256 value) returns (bool)",
   "function balanceOf(address owner) view returns (uint256)",
   "function decimals() view returns (uint8)",
   "function symbol() view returns (string)",
@@ -25,6 +32,7 @@ const erc20Abi = [
 
 type TabKey = "send" | "receive";
 type TxStatus = "pending" | "confirmed" | "failed";
+type SendAsset = "ETH" | "USDT" | "BNB";
 
 type WalletTx = {
   id: string;
@@ -100,6 +108,7 @@ function copyToClipboard(value: string) {
 
 export default function WalletPage() {
   const [activeTab, setActiveTab] = useState<TabKey>("send");
+  const [selectedAsset, setSelectedAsset] = useState<SendAsset>("ETH");
 
   const [walletAddress, setWalletAddress] = useState("");
   const [privateKey, setPrivateKey] = useState("");
@@ -111,7 +120,7 @@ export default function WalletPage() {
   const [isUnlocked, setIsUnlocked] = useState(false);
 
   const [recipient, setRecipient] = useState("");
-  const [ethAmount, setEthAmount] = useState("");
+  const [sendAmount, setSendAmount] = useState("");
   const [loadingBalances, setLoadingBalances] = useState(true);
   const [sending, setSending] = useState(false);
 
@@ -119,9 +128,16 @@ export default function WalletPage() {
   const [transactionPin, setTransactionPin] = useState("");
   const [pendingSend, setPendingSend] = useState(false);
 
+  const [phone, setPhone] = useState("");
+  const [otpCode, setOtpCode] = useState("");
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpVerified, setOtpVerified] = useState(false);
+
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [lastTxHash, setLastTxHash] = useState("");
+
+  const isValidPhone = (num: string) => /^\+[1-9]\d{7,14}$/.test(num);
 
   const createWallet = async () => {
     try {
@@ -178,7 +194,7 @@ export default function WalletPage() {
 
       const usdtContract = new ethers.Contract(
         USDT_CONTRACT,
-        erc20Abi,
+        erc20ReadAbi,
         provider
       );
 
@@ -188,8 +204,6 @@ export default function WalletPage() {
         usdtContract.decimals(),
         usdtContract.symbol(),
       ]);
-
-      console.log("Loading balances for:", address);
 
       setEthBalance(Number(ethers.formatEther(ethRaw)).toFixed(4));
       setUsdtBalance(Number(ethers.formatUnits(usdtRaw, decimals)).toFixed(2));
@@ -240,15 +254,41 @@ export default function WalletPage() {
     loadWalletData();
   }, [loadWalletData]);
 
-  const handleSendEth = async () => {
+  const sendOtp = () => {
+    setError("");
+    setSuccess("");
+
+    if (!isValidPhone(phone.trim())) {
+      setError(
+        "Enter a valid global phone number with country code (example: +14155552671)."
+      );
+      return;
+    }
+
+    setOtpSent(true);
+    setOtpVerified(false);
+    setOtpCode("");
+    setSuccess("Demo OTP sent. Use 123456 to verify.");
+  };
+
+  const verifyOtp = () => {
+    setError("");
+    setSuccess("");
+
+    if (otpCode.trim() === "123456") {
+      setOtpVerified(true);
+      setSuccess("OTP verified. You can now send.");
+      return;
+    }
+
+    setOtpVerified(false);
+    setError("Invalid OTP.");
+  };
+
+  const handleSendAsset = async () => {
     setError("");
     setSuccess("");
     setLastTxHash("");
-
-    if (isAuthEnabled() && !pendingSend) {
-      setShowAuthPrompt(true);
-      return;
-    }
 
     try {
       if (!isUnlocked || !privateKey) {
@@ -258,6 +298,11 @@ export default function WalletPage() {
 
       if (!walletAddress) {
         setError("No wallet loaded.");
+        return;
+      }
+
+      if (!otpVerified) {
+        setError("Verify OTP first.");
         return;
       }
 
@@ -271,24 +316,14 @@ export default function WalletPage() {
         return;
       }
 
-      if (!ethAmount.trim() || Number(ethAmount) <= 0) {
-        setError("Please enter a valid ETH amount.");
+      if (!sendAmount.trim() || Number(sendAmount) <= 0) {
+        setError(`Please enter a valid ${selectedAsset} amount.`);
         return;
       }
 
-      const totalAmount = Number(ethAmount);
-
-      if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
-        setError("Invalid ETH amount.");
-        return;
-      }
-
-      const rawFeeAmount = (totalAmount * FEE_PERCENT) / 100;
-      const feeAmount = rawFeeAmount >= MIN_FEE_ETH ? rawFeeAmount : 0;
-      const sendAmount = totalAmount - feeAmount;
-
-      if (sendAmount <= 0) {
-        setError("Amount is too small after fee deduction.");
+      const numericAmount = Number(sendAmount);
+      if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+        setError(`Invalid ${selectedAsset} amount.`);
         return;
       }
 
@@ -301,79 +336,161 @@ export default function WalletPage() {
 
       const signer = new ethers.Wallet(cleanedKey, provider);
       const fromAddress = signer.address;
+      const network = await provider.getNetwork();
+      const chainId = Number(network.chainId);
 
-      const totalWei = ethers.parseEther(totalAmount.toFixed(18));
-      const feeWei = ethers.parseEther(feeAmount.toFixed(18));
-
-      const balanceWei = await provider.getBalance(fromAddress);
-
-      const fastGasPrice = ethers.parseUnits("10", "gwei");
-      const estimatedGasPerTx = BigInt(21000);
-      const txCount = feeWei > BigInt(0) ? BigInt(2) : BigInt(1);
-      const gasBufferWei = fastGasPrice * estimatedGasPerTx * txCount;
-
-      if (balanceWei < totalWei + gasBufferWei) {
-        setError(
-          "Insufficient ETH balance for transfer, service fee, and network gas."
-        );
+      if (selectedAsset === "BNB" && chainId !== 56) {
+        setError("BNB sending requires a BNB Chain RPC/provider.");
         return;
       }
 
-      let feeTxHash = "";
+      if (selectedAsset === "USDT") {
+        if (chainId !== 1) {
+          setError("This USDT contract is configured for Ethereum Mainnet only.");
+          return;
+        }
 
-     if (feeWei > BigInt(0)) {
-        const feeTx = await signer.sendTransaction({
-          to: FEE_WALLET,
-          value: feeWei,
+        const usdtContract = new ethers.Contract(
+          USDT_CONTRACT,
+          erc20WriteAbi,
+          signer
+        );
+
+        const decimals: number = await usdtContract.decimals();
+        const amountUnits = ethers.parseUnits(sendAmount, decimals);
+
+        const tokenBalance = await usdtContract.balanceOf(fromAddress);
+        if (tokenBalance < amountUnits) {
+          setError("Insufficient USDT balance.");
+          return;
+        }
+
+        const gasBalance = await provider.getBalance(fromAddress);
+        const fastGasPrice = ethers.parseUnits("10", "gwei");
+        const gasBufferWei = fastGasPrice * BigInt(80000);
+
+        if (gasBalance < gasBufferWei) {
+          setError("Insufficient ETH balance for USDT network gas.");
+          return;
+        }
+
+        const sendTx = await usdtContract.transfer(recipient.trim(), amountUnits);
+        setLastTxHash(sendTx.hash);
+
+        appendWalletTx({
+          id: `${Date.now()}-${sendTx.hash}`,
+          walletAddress: fromAddress,
+          txHash: sendTx.hash,
+          token: "USDT",
+          amount: sendAmount,
+          to: recipient.trim(),
+          status: "pending",
+          createdAt: new Date().toISOString(),
+        });
+
+        const receipt = await sendTx.wait();
+
+        appendWalletTx({
+          id: `${Date.now()}-${sendTx.hash}-final`,
+          walletAddress: fromAddress,
+          txHash: sendTx.hash,
+          token: "USDT",
+          amount: sendAmount,
+          to: recipient.trim(),
+          status: receipt?.status === 1 ? "confirmed" : "failed",
+          createdAt: new Date().toISOString(),
+        });
+
+        setSuccess("USDT sent successfully.");
+      } else {
+        const totalAmount = numericAmount;
+        const rawFeeAmount = (totalAmount * FEE_PERCENT) / 100;
+        const feeAmount = rawFeeAmount >= MIN_FEE_ETH ? rawFeeAmount : 0;
+        const payoutAmount = totalAmount - feeAmount;
+
+        if (payoutAmount <= 0) {
+          setError("Amount is too small after fee deduction.");
+          return;
+        }
+
+        const totalWei = ethers.parseEther(totalAmount.toFixed(18));
+        const feeWei = ethers.parseEther(feeAmount.toFixed(18));
+
+        const balanceWei = await provider.getBalance(fromAddress);
+
+        const fastGasPrice = ethers.parseUnits("10", "gwei");
+        const estimatedGasPerTx = BigInt(21000);
+        const txCount = feeWei > BigInt(0) ? BigInt(2) : BigInt(1);
+        const gasBufferWei = fastGasPrice * estimatedGasPerTx * txCount;
+
+        if (balanceWei < totalWei + gasBufferWei) {
+          setError(
+            `Insufficient ${selectedAsset} balance for transfer, service fee, and network gas.`
+          );
+          return;
+        }
+
+        let feeTxHash = "";
+
+        if (feeWei > BigInt(0)) {
+          const feeTx = await signer.sendTransaction({
+            to: FEE_WALLET,
+            value: feeWei,
+            gasPrice: fastGasPrice,
+          });
+
+          feeTxHash = feeTx.hash;
+          await feeTx.wait();
+        }
+
+        const sendTx = await signer.sendTransaction({
+          to: recipient.trim(),
+          value: ethers.parseEther(payoutAmount.toString()),
           gasPrice: fastGasPrice,
         });
 
-        feeTxHash = feeTx.hash;
-        await feeTx.wait();
+        setLastTxHash(sendTx.hash);
+
+        appendWalletTx({
+          id: `${Date.now()}-${sendTx.hash}`,
+          walletAddress: fromAddress,
+          txHash: sendTx.hash,
+          token: selectedAsset,
+          amount: payoutAmount.toString(),
+          to: recipient.trim(),
+          status: "pending",
+          createdAt: new Date().toISOString(),
+        });
+
+        const receipt = await sendTx.wait();
+
+        appendWalletTx({
+          id: `${Date.now()}-${sendTx.hash}-final`,
+          walletAddress: fromAddress,
+          txHash: sendTx.hash,
+          token: selectedAsset,
+          amount: payoutAmount.toString(),
+          to: recipient.trim(),
+          status: receipt?.status === 1 ? "confirmed" : "failed",
+          createdAt: new Date().toISOString(),
+        });
+
+        setSuccess(
+          feeAmount > 0
+            ? `${selectedAsset} transaction sent successfully. ${feeAmount.toFixed(
+                6
+              )} ${selectedAsset} fee was sent to the fee wallet.${
+                feeTxHash ? ` Fee TX: ${feeTxHash}` : ""
+              }`
+            : `${selectedAsset} transaction sent successfully. No fee was charged because the calculated fee was below the minimum threshold.`
+        );
       }
 
-      const sendTx = await signer.sendTransaction({
-        to: recipient.trim(),
-        value: ethers.parseEther(sendAmount.toString()),
-        gasPrice: fastGasPrice,
-      });
-
-      setLastTxHash(sendTx.hash);
-
-      appendWalletTx({
-        id: `${Date.now()}-${sendTx.hash}`,
-        walletAddress: fromAddress,
-        txHash: sendTx.hash,
-        token: "ETH",
-        amount: sendAmount.toString(),
-        to: recipient.trim(),
-        status: "pending",
-        createdAt: new Date().toISOString(),
-      });
-
-      const receipt = await sendTx.wait();
-
-      appendWalletTx({
-        id: `${Date.now()}-${sendTx.hash}-final`,
-        walletAddress: fromAddress,
-        txHash: sendTx.hash,
-        token: "ETH",
-        amount: sendAmount.toString(),
-        to: recipient.trim(),
-        status: receipt?.status === 1 ? "confirmed" : "failed",
-        createdAt: new Date().toISOString(),
-      });
-
-      setSuccess(
-        feeAmount > 0
-          ? `Transaction sent successfully. ${feeAmount.toFixed(
-              6
-            )} ETH fee was sent to the fee wallet.${feeTxHash ? ` Fee TX: ${feeTxHash}` : ""}`
-          : "Transaction sent successfully. No fee was charged because the calculated fee was below the minimum threshold."
-      );
-
       setRecipient("");
-      setEthAmount("");
+      setSendAmount("");
+      setOtpVerified(false);
+      setOtpSent(false);
+      setOtpCode("");
       await loadWalletData(fromAddress);
     } catch (err: any) {
       console.error(err);
@@ -382,6 +499,23 @@ export default function WalletPage() {
       setSending(false);
       setPendingSend(false);
     }
+  };
+
+  const startProtectedSend = () => {
+    setError("");
+    setSuccess("");
+
+    if (!otpVerified) {
+      setError("Verify OTP first.");
+      return;
+    }
+
+    if (isAuthEnabled() && !pendingSend) {
+      setShowAuthPrompt(true);
+      return;
+    }
+
+    void handleSendAsset();
   };
 
   const handleVerifyTransactionPin = () => {
@@ -395,266 +529,11 @@ export default function WalletPage() {
     setPendingSend(true);
 
     setTimeout(() => {
-      handleSendEth();
+      void handleSendAsset();
     }, 0);
   };
 
   const estimatedUsd = useMemo(() => Number(usdtBalance ?? "0"), [usdtBalance]);
-return (
-  <div className="rounded-[22px] border border-white/10 bg-[#071923]/95 p-3">
-    <div className="mb-3 flex items-center gap-2">
-      <div className="h-7 w-7 rounded-full bg-gradient-to-br from-orange-300 via-pink-400 to-rose-500" />
-      <div className="flex-1 rounded-full bg-white/5 px-4 py-2 text-[11px] text-white/35">
-        Search the wallet
-      </div>
-      <div className="h-7 w-7 rounded-full bg-white/8" />
-    </div>
-
-      <div className="mb-3 flex items-start justify-between gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] uppercase tracking-[0.28em] text-cyan-300/75">
-            Wallet • {shortenAddress(walletAddress)}
-          </p>
-
-          {walletAddress ? (
-            <p className="mt-1 break-all text-[11px] text-white/55">
-              {walletAddress}
-            </p>
-          ) : null}
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          {walletAddress ? (
-            <button
-              type="button"
-              onClick={() => copyToClipboard(walletAddress)}
-              className="rounded-full border border-white/10 bg-white/10 px-3 py-1.5 text-[10px] font-semibold text-white/85"
-            >
-              Copy
-            </button>
-          ) : null}
-
-          <span
-            className={`rounded-full px-3 py-1.5 text-[10px] font-semibold ${
-              isUnlocked
-                ? "border border-emerald-400/25 bg-emerald-500/10 text-emerald-200"
-                : "border border-amber-400/25 bg-amber-500/10 text-amber-200"
-            }`}
-          >
-            {isUnlocked ? "Unlocked" : "Locked"}
-          </span>
-
-          <button
-            type="button"
-            onClick={() => loadWalletData()}
-            className="rounded-full border border-cyan-400/25 bg-cyan-500/15 px-3 py-1.5 text-[10px] font-semibold text-cyan-200"
-          >
-            {loadingBalances ? "Loading" : "Refresh"}
-          </button>
-        </div>
-      </div>
-
-      <div className="mb-3 space-y-2">
-        {!isUnlocked ? (
-          <>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Enter wallet password"
-              className="w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
-            />
-
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={createWallet}
-                className="rounded-2xl border border-emerald-400/25 bg-emerald-500/15 px-4 py-3 text-sm font-semibold text-emerald-200"
-              >
-                Create
-              </button>
-
-              <button
-                type="button"
-                onClick={unlockWallet}
-                className="rounded-2xl border border-cyan-400/25 bg-cyan-500/15 px-4 py-3 text-sm font-semibold text-cyan-200"
-              >
-                Unlock
-              </button>
-            </div>
-          </>
-        ) : (
-          <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-            Wallet is unlocked and ready to send.
-          </div>
-        )}
-      </div>
-
-      <div className="mb-3 grid grid-cols-3 gap-2">
-        <div className="rounded-2xl border border-white/8 bg-[#091720] p-3">
-          <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">
-            ETH
-          </p>
-          <p className="mt-2 text-xl font-bold">{ethBalance}</p>
-          <p className="mt-1 text-[10px] text-white/45">Ethereum Mainnet</p>
-        </div>
-
-        <div className="rounded-2xl border border-white/8 bg-[#091720] p-3">
-          <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">
-            {usdtSymbol}
-          </p>
-          <p className="mt-2 text-xl font-bold">{usdtBalance}</p>
-          <p className="mt-1 text-[10px] text-white/45">Stable balance</p>
-        </div>
-
-        <div className="rounded-2xl border border-white/8 bg-[#091720] p-3">
-          <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">
-            USD
-          </p>
-          <p className="mt-2 text-xl font-bold">${formatUsd(estimatedUsd)}</p>
-          <p className="mt-1 text-[10px] text-white/45">Estimated value</p>
-        </div>
-      </div>
-
-      <div className="mt-4 rounded-[24px] border border-white/8 bg-[#0a1821] p-3">
-        <div className="mb-3 flex gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab("send")}
-            className={`rounded-full px-4 py-2 text-xs font-medium ${
-              activeTab === "send"
-                ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
-                : "border border-white/10 bg-white/10 text-white/75"
-            }`}
-          >
-            Send
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("receive")}
-            className={`rounded-full px-4 py-2 text-xs font-medium ${
-              activeTab === "receive"
-                ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
-                : "border border-white/10 bg-white/10 text-white/75"
-            }`}
-          >
-            Receive
-          </button>
-        </div>
-
-        {activeTab === "send" ? (
-          <div className="space-y-3">
-            <div>
-              <label className="mb-2 block text-sm text-white/65">
-                Recipient Address
-              </label>
-              <input
-                value={recipient}
-                onChange={(e) => setRecipient(e.target.value)}
-                placeholder="0x..."
-                className="w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
-              />
-            </div>
-
-            <div>
-              <label className="mb-2 block text-sm text-white/65">
-                ETH Amount
-              </label>
-              <input
-                value={ethAmount}
-                onChange={(e) => setEthAmount(e.target.value)}
-                placeholder="0.001"
-                className="w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
-              />
-            </div>
-
-            <button
-              type="button"
-              onClick={handleSendEth}
-              disabled={sending || !isUnlocked}
-              className="w-full rounded-2xl border border-cyan-400/25 bg-cyan-500/20 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {!isUnlocked
-                ? "Unlock Wallet First"
-                : sending
-                ? "Sending..."
-                : "Send ETH"}
-            </button>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            <div className="flex justify-center rounded-[22px] bg-white p-4">
-              <QRCodeSVG value={walletAddress || "No wallet loaded"} size={180} />
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-[#06131b] p-3">
-              <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">
-                Receive Address
-              </p>
-              <p className="mt-2 break-all text-sm text-white/85">
-                {walletAddress || "No wallet loaded"}
-              </p>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => copyToClipboard(walletAddress)}
-              className="w-full rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-medium text-white"
-            >
-              Copy Wallet Address
-            </button>
-          </div>
-        )}
-
-        {(error || success || lastTxHash) && (
-          <div className="mt-3 space-y-2">
-            {error ? (
-              <div className="rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                {error}
-              </div>
-            ) : null}
-
-            {success ? (
-              <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-                {success}
-              </div>
-            ) : null}
-
-            {lastTxHash ? (
-              <div className="rounded-2xl border border-cyan-500/25 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-200">
-                TX Hash: <span className="break-all font-mono">{lastTxHash}</span>
-              </div>
-            ) : null}
-          </div>
-        )}
-      </div>
-
-      <div className="mt-4 grid grid-cols-4 gap-2 rounded-full border border-white/8 bg-white/6 p-1.5 text-center">
-        <Link
-          href="/dashboard"
-          className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70"
-        >
-          Home
-        </Link>
-        <Link
-          href="/dashboard/market"
-          className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70"
-        >
-          Markets
-        </Link>
-        <span className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70">
-          Swap
-        </span>
-        <Link
-          href="/dashboard/history"
-          className="rounded-full bg-cyan-500/90 px-2 py-2 text-[10px] font-medium text-[#031019]"
-        >
-          Wallet
-        </Link>
-      </div>
-    </div>
-    );
 
   return (
     <div className="rounded-[22px] border border-white/10 bg-[#071923]/95 p-3">
@@ -803,6 +682,21 @@ return (
           <div className="space-y-3">
             <div>
               <label className="mb-2 block text-sm text-white/65">
+                Asset
+              </label>
+              <select
+                value={selectedAsset}
+                onChange={(e) => setSelectedAsset(e.target.value as SendAsset)}
+                className="w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none"
+              >
+                <option value="ETH">ETH</option>
+                <option value="USDT">USDT (ERC20)</option>
+                <option value="BNB">BNB</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm text-white/65">
                 Recipient Address
               </label>
               <input
@@ -815,23 +709,73 @@ return (
 
             <div>
               <label className="mb-2 block text-sm text-white/65">
-                ETH Amount
+                {selectedAsset} Amount
               </label>
               <input
-                value={ethAmount}
-                onChange={(e) => setEthAmount(e.target.value)}
-                placeholder="0.001"
+                value={sendAmount}
+                onChange={(e) => setSendAmount(e.target.value)}
+                placeholder={selectedAsset === "USDT" ? "10.00" : "0.001"}
                 className="w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
               />
             </div>
 
+            <div>
+              <label className="mb-2 block text-sm text-white/65">
+                Phone Number
+              </label>
+              <input
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                placeholder="+1234567890 (include country code)"
+                className="w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={sendOtp}
+                className="rounded-2xl border border-blue-400/25 bg-blue-500/20 px-4 py-3 text-sm font-semibold text-blue-100"
+              >
+                Send OTP
+              </button>
+
+              <button
+                type="button"
+                onClick={verifyOtp}
+                disabled={!otpSent}
+                className="rounded-2xl border border-emerald-400/25 bg-emerald-500/20 px-4 py-3 text-sm font-semibold text-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                Verify OTP
+              </button>
+            </div>
+
+            {otpSent ? (
+              <input
+                value={otpCode}
+                onChange={(e) => setOtpCode(e.target.value)}
+                placeholder="Enter OTP"
+                className="w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+              />
+            ) : null}
+
+            {otpVerified ? (
+              <div className="rounded-2xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
+                OTP verified. You can now send.
+              </div>
+            ) : null}
+
             <button
               type="button"
-              onClick={handleSendEth}
+              onClick={startProtectedSend}
               disabled={sending || !isUnlocked}
               className="w-full rounded-2xl border border-cyan-400/25 bg-cyan-500/20 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {!isUnlocked ? "Unlock Wallet First" : sending ? "Sending..." : "Send ETH"}
+              {!isUnlocked
+                ? "Unlock Wallet First"
+                : sending
+                ? "Sending..."
+                : `Send ${selectedAsset}`}
             </button>
           </div>
         ) : (
@@ -882,70 +826,70 @@ return (
         )}
       </div>
 
-     <div className="mt-4 grid grid-cols-4 gap-2 rounded-full border border-white/8 bg-white/6 p-1.5 text-center">
-  <Link
-    href="/dashboard"
-    className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70"
-  >
-    Home
-  </Link>
+      <div className="mt-4 grid grid-cols-4 gap-2 rounded-full border border-white/8 bg-white/6 p-1.5 text-center">
+        <Link
+          href="/dashboard"
+          className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70"
+        >
+          Home
+        </Link>
 
-  <Link
-    href="/dashboard/market"
-    className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70"
-  >
-    Markets
-  </Link>
+        <Link
+          href="/dashboard/market"
+          className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70"
+        >
+          Markets
+        </Link>
 
-  <span className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70">
-    Swap
-  </span>
+        <span className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70">
+          Swap
+        </span>
 
-  <Link
-    href="/dashboard/history"
-    className="rounded-full bg-cyan-500/90 px-2 py-2 text-[10px] font-medium text-[#031019]"
-  >
-    Wallet
-  </Link>
-</div>
+        <Link
+          href="/dashboard/history"
+          className="rounded-full bg-cyan-500/90 px-2 py-2 text-[10px] font-medium text-[#031019]"
+        >
+          Wallet
+        </Link>
+      </div>
 
-{showAuthPrompt && (
-  <div className="mt-4 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-4">
-    <p className="mb-3 text-sm font-semibold text-amber-200">
-      CryptoHost Secure Auth
-    </p>
+      {showAuthPrompt && (
+        <div className="mt-4 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-4">
+          <p className="mb-3 text-sm font-semibold text-amber-200">
+            CryptoHost Secure Auth
+          </p>
 
-    <input
-      type="password"
-      value={transactionPin}
-      onChange={(e) => setTransactionPin(e.target.value)}
-      placeholder="Enter 6-digit Transaction PIN"
-      className="w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none"
-    />
+          <input
+            type="password"
+            value={transactionPin}
+            onChange={(e) => setTransactionPin(e.target.value)}
+            placeholder="Enter 6-digit Transaction PIN"
+            className="w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none"
+          />
 
-    <div className="mt-3 flex gap-2">
-      <button
-        type="button"
-        onClick={handleVerifyTransactionPin}
-        className="flex-1 rounded-2xl border border-cyan-400/25 bg-cyan-500/20 px-4 py-3 text-sm font-semibold text-cyan-100"
-      >
-        Verify & Send
-      </button>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              onClick={handleVerifyTransactionPin}
+              className="flex-1 rounded-2xl border border-cyan-400/25 bg-cyan-500/20 px-4 py-3 text-sm font-semibold text-cyan-100"
+            >
+              Verify & Send
+            </button>
 
-      <button
-        type="button"
-        onClick={() => {
-          setShowAuthPrompt(false);
-          setTransactionPin("");
-          setPendingSend(false);
-        }}
-        className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-medium text-white"
-      >
-        Cancel
-      </button>
+            <button
+              type="button"
+              onClick={() => {
+                setShowAuthPrompt(false);
+                setTransactionPin("");
+                setPendingSend(false);
+              }}
+              className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-medium text-white"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      )}
     </div>
-  </div>
-)}
-</div>
-);
+  );
 }
