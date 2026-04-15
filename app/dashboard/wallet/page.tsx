@@ -12,6 +12,7 @@ import {
   getEncryptedWalletAddress,
 } from "@/app/lib/wallet-security";
 import { provider } from "../../lib/wallet-provider";
+import { isAuthEnabled, verifyPin } from "@/app/lib/cryptohost-auth";
 
 const MIN_FEE_ETH = 0.00002;
 const USDT_CONTRACT = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
@@ -113,6 +114,10 @@ export default function WalletPage() {
   const [ethAmount, setEthAmount] = useState("");
   const [loadingBalances, setLoadingBalances] = useState(true);
   const [sending, setSending] = useState(false);
+
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  const [transactionPin, setTransactionPin] = useState("");
+  const [pendingSend, setPendingSend] = useState(false);
 
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -240,6 +245,11 @@ export default function WalletPage() {
     setSuccess("");
     setLastTxHash("");
 
+    if (isAuthEnabled() && !pendingSend) {
+      setShowAuthPrompt(true);
+      return;
+    }
+
     try {
       if (!isUnlocked || !privateKey) {
         setError("Unlock wallet first.");
@@ -268,12 +278,13 @@ export default function WalletPage() {
 
       const totalAmount = Number(ethAmount);
 
-      if (Number.isNaN(totalAmount) || totalAmount <= 0) {
+      if (!Number.isFinite(totalAmount) || totalAmount <= 0) {
         setError("Invalid ETH amount.");
         return;
       }
 
-      const feeAmount = (totalAmount * FEE_PERCENT) / 100;
+      const rawFeeAmount = (totalAmount * FEE_PERCENT) / 100;
+      const feeAmount = rawFeeAmount >= MIN_FEE_ETH ? rawFeeAmount : 0;
       const sendAmount = totalAmount - feeAmount;
 
       if (sendAmount <= 0) {
@@ -289,24 +300,49 @@ export default function WalletPage() {
       setSending(true);
 
       const signer = new ethers.Wallet(cleanedKey, provider);
+      const fromAddress = signer.address;
+
+      const totalWei = ethers.parseEther(totalAmount.toFixed(18));
+      const feeWei = ethers.parseEther(feeAmount.toFixed(18));
+
+      const balanceWei = await provider.getBalance(fromAddress);
+
+      const fastGasPrice = ethers.parseUnits("10", "gwei");
+      const estimatedGasPerTx = BigInt(21000);
+      const txCount = feeWei > BigInt(0) ? BigInt(2) : BigInt(1);
+      const gasBufferWei = fastGasPrice * estimatedGasPerTx * txCount;
+
+      if (balanceWei < totalWei + gasBufferWei) {
+        setError(
+          "Insufficient ETH balance for transfer, service fee, and network gas."
+        );
+        return;
+      }
+
+      let feeTxHash = "";
+
+     if (feeWei > BigInt(0)) {
+        const feeTx = await signer.sendTransaction({
+          to: FEE_WALLET,
+          value: feeWei,
+          gasPrice: fastGasPrice,
+        });
+
+        feeTxHash = feeTx.hash;
+        await feeTx.wait();
+      }
 
       const sendTx = await signer.sendTransaction({
         to: recipient.trim(),
         value: ethers.parseEther(sendAmount.toString()),
+        gasPrice: fastGasPrice,
       });
-
-      if (feeAmount >= MIN_FEE_ETH) {
-        await signer.sendTransaction({
-          to: FEE_WALLET,
-          value: ethers.parseEther(feeAmount.toString()),
-        });
-      }
 
       setLastTxHash(sendTx.hash);
 
       appendWalletTx({
         id: `${Date.now()}-${sendTx.hash}`,
-        walletAddress: signer.address,
+        walletAddress: fromAddress,
         txHash: sendTx.hash,
         token: "ETH",
         amount: sendAmount.toString(),
@@ -315,44 +351,64 @@ export default function WalletPage() {
         createdAt: new Date().toISOString(),
       });
 
-      sendTx.wait().then((receipt) => {
-        appendWalletTx({
-          id: `${Date.now()}-${sendTx.hash}-final`,
-          walletAddress: signer.address,
-          txHash: sendTx.hash,
-          token: "ETH",
-          amount: sendAmount.toString(),
-          to: recipient.trim(),
-          status: receipt?.status === 1 ? "confirmed" : "failed",
-          createdAt: new Date().toISOString(),
-        });
+      const receipt = await sendTx.wait();
+
+      appendWalletTx({
+        id: `${Date.now()}-${sendTx.hash}-final`,
+        walletAddress: fromAddress,
+        txHash: sendTx.hash,
+        token: "ETH",
+        amount: sendAmount.toString(),
+        to: recipient.trim(),
+        status: receipt?.status === 1 ? "confirmed" : "failed",
+        createdAt: new Date().toISOString(),
       });
 
       setSuccess(
-        `Transaction sent successfully! ${feeAmount.toFixed(6)} ETH service fee applied.`
+        feeAmount > 0
+          ? `Transaction sent successfully. ${feeAmount.toFixed(
+              6
+            )} ETH fee was sent to the fee wallet.${feeTxHash ? ` Fee TX: ${feeTxHash}` : ""}`
+          : "Transaction sent successfully. No fee was charged because the calculated fee was below the minimum threshold."
       );
+
       setRecipient("");
       setEthAmount("");
-      await loadWalletData(signer.address);
+      await loadWalletData(fromAddress);
     } catch (err: any) {
       console.error(err);
       setError(err?.shortMessage || err?.message || "Transaction failed.");
     } finally {
       setSending(false);
+      setPendingSend(false);
     }
   };
 
-  const estimatedUsd = useMemo(() => Number(usdtBalance || 0), [usdtBalance]);
+  const handleVerifyTransactionPin = () => {
+    if (!verifyPin(transactionPin)) {
+      setError("Invalid authentication PIN.");
+      return;
+    }
 
-  return (
-    <div className="rounded-[22px] border border-white/10 bg-[#071923]/95 p-3">
-      <div className="mb-3 flex items-center gap-2">
-        <div className="h-7 w-7 rounded-full bg-gradient-to-br from-orange-300 via-pink-400 to-rose-500" />
-        <div className="flex-1 rounded-full bg-white/5 px-4 py-2 text-[11px] text-white/35">
-          Search the wallet
-        </div>
-        <div className="h-7 w-7 rounded-full bg-white/8" />
+    setShowAuthPrompt(false);
+    setTransactionPin("");
+    setPendingSend(true);
+
+    setTimeout(() => {
+      handleSendEth();
+    }, 0);
+  };
+
+  const estimatedUsd = useMemo(() => Number(usdtBalance ?? "0"), [usdtBalance]);
+return (
+  <div className="rounded-[22px] border border-white/10 bg-[#071923]/95 p-3">
+    <div className="mb-3 flex items-center gap-2">
+      <div className="h-7 w-7 rounded-full bg-gradient-to-br from-orange-300 via-pink-400 to-rose-500" />
+      <div className="flex-1 rounded-full bg-white/5 px-4 py-2 text-[11px] text-white/35">
+        Search the wallet
       </div>
+      <div className="h-7 w-7 rounded-full bg-white/8" />
+    </div>
 
       <div className="mb-3 flex items-start justify-between gap-2">
         <div className="min-w-0 flex-1">
@@ -826,29 +882,70 @@ export default function WalletPage() {
         )}
       </div>
 
-      <div className="mt-4 grid grid-cols-4 gap-2 rounded-full border border-white/8 bg-white/6 p-1.5 text-center">
-        <Link
-          href="/dashboard"
-          className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70"
-        >
-          Home
-        </Link>
-        <Link
-          href="/dashboard/market"
-          className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70"
-        >
-          Markets
-        </Link>
-        <span className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70">
-          Swap
-        </span>
-        <Link
-          href="/dashboard/history"
-          className="rounded-full bg-cyan-500/90 px-2 py-2 text-[10px] font-medium text-[#031019]"
-        >
-          Wallet
-        </Link>
-      </div>
+     <div className="mt-4 grid grid-cols-4 gap-2 rounded-full border border-white/8 bg-white/6 p-1.5 text-center">
+  <Link
+    href="/dashboard"
+    className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70"
+  >
+    Home
+  </Link>
+
+  <Link
+    href="/dashboard/market"
+    className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70"
+  >
+    Markets
+  </Link>
+
+  <span className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70">
+    Swap
+  </span>
+
+  <Link
+    href="/dashboard/history"
+    className="rounded-full bg-cyan-500/90 px-2 py-2 text-[10px] font-medium text-[#031019]"
+  >
+    Wallet
+  </Link>
+</div>
+
+{showAuthPrompt && (
+  <div className="mt-4 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-4">
+    <p className="mb-3 text-sm font-semibold text-amber-200">
+      CryptoHost Secure Auth
+    </p>
+
+    <input
+      type="password"
+      value={transactionPin}
+      onChange={(e) => setTransactionPin(e.target.value)}
+      placeholder="Enter 6-digit Transaction PIN"
+      className="w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none"
+    />
+
+    <div className="mt-3 flex gap-2">
+      <button
+        type="button"
+        onClick={handleVerifyTransactionPin}
+        className="flex-1 rounded-2xl border border-cyan-400/25 bg-cyan-500/20 px-4 py-3 text-sm font-semibold text-cyan-100"
+      >
+        Verify & Send
+      </button>
+
+      <button
+        type="button"
+        onClick={() => {
+          setShowAuthPrompt(false);
+          setTransactionPin("");
+          setPendingSend(false);
+        }}
+        className="rounded-2xl border border-white/10 bg-white/10 px-4 py-3 text-sm font-medium text-white"
+      >
+        Cancel
+      </button>
     </div>
-  );
+  </div>
+)}
+</div>
+);
 }

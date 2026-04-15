@@ -6,6 +6,12 @@ import {
   hasEncryptedWallet,
   unlockEncryptedWallet,
 } from "@/app/lib/wallet-security";
+import {
+  generateAuthSecret,
+  saveAuthSettings,
+  loadAuthSettings,
+  hashPin,
+} from "@/app/lib/cryptohost-auth";
 
 export default function SecurityPage() {
   const [message, setMessage] = useState("");
