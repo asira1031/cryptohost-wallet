@@ -27,7 +27,13 @@ export default function LoginPage() {
     if (error) {
       setMessage("Invalid login credentials");
     } else {
-      router.push("/dashboard");
+      const is2FA = localStorage.getItem("2fa_enabled");
+
+if (is2FA === "true") {
+  router.push("/verify-2fa");
+} else {
+  router.push("/dashboard");
+}
     }
 
     setLoading(false);
