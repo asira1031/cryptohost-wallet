@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "../lib/supabase/client";
+import { createBrowserClient } from "@supabase/ssr";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -12,8 +12,19 @@ export default function ForgotPasswordPage() {
     setLoading(true);
     setMessage("");
 
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+    if (!supabaseUrl || !supabaseAnonKey) {
+      setMessage("Supabase environment variables are missing.");
+      setLoading(false);
+      return;
+    }
+
+    const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: "http://localhost:3000/reset-password",
+      redirectTo: `${window.location.origin}/reset-password`,
     });
 
     if (error) {
