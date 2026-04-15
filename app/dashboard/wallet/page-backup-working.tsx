@@ -598,8 +598,8 @@ export default function WalletPage() {
         </Link>
       </div>
     </div>
-    );
-
+  );
+}
   return (
     <div className="rounded-[22px] border border-white/10 bg-[#071923]/95 p-3">
       <div className="mb-3 flex items-center gap-2">
@@ -851,4 +851,3 @@ export default function WalletPage() {
       </div>
     </div>
   );
-}
