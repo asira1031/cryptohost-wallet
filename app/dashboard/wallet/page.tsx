@@ -577,7 +577,7 @@ export default function WalletPage() {
         const totalWei = ethers.parseEther(totalAmount.toFixed(18));
         const feeWei = ethers.parseEther(feeAmount.toFixed(18));
 
-        const balanceWei = await provider.getBalance(fromAddress);
+        const balanceWei = await activeProvider.getBalance(fromAddress);
 
         const fastGasPrice = ethers.parseUnits("10", "gwei");
         const estimatedGasPerTx = BigInt(21000);
@@ -1111,14 +1111,14 @@ export default function WalletPage() {
         </Link>
 
         <Link
-       href="/dashboard/swap"
-       className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70"
->
-        Swap
-      </Link>
+          href="/dashboard/swap"
+          className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70"
+        >
+          Swap
+        </Link>
 
         <Link
-          href="/dashboard/history"
+          href="/dashboard/wallet"
           className="rounded-full bg-cyan-500/90 px-2 py-2 text-[10px] font-medium text-[#031019]"
         >
           Wallet

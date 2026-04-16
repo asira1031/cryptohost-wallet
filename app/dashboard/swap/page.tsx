@@ -2,10 +2,19 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { ethers } from "ethers";
+import { getProvider } from "@/app/lib/wallet-provider";
+import { unlockEncryptedWallet } from "@/app/lib/wallet-security";
 
 type Asset = "ETH" | "USDT" | "BNB";
 
-const SWAP_FEE_PERCENT = 1; // ✅ your platform fee
+const SWAP_FEE_PERCENT = 1;
+
+const TOKEN_MAP = {
+  ETH: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+  USDT: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+  BNB: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
+};
 
 export default function SwapPage() {
   const [from, setFrom] = useState<Asset>("ETH");
@@ -14,6 +23,7 @@ export default function SwapPage() {
   const [price, setPrice] = useState<number | null>(null);
   const [loadingPrice, setLoadingPrice] = useState(false);
   const [message, setMessage] = useState("");
+  const [loadingSwap, setLoadingSwap] = useState(false);
 
   const mapId = (asset: Asset) => {
     if (asset === "ETH") return "ethereum";
@@ -24,81 +34,96 @@ export default function SwapPage() {
   useEffect(() => {
     const loadPrice = async () => {
       setLoadingPrice(true);
-      setMessage("");
-
       try {
         const res = await fetch(
           `https://api.coingecko.com/api/v3/simple/price?ids=${mapId(
             from
           )}&vs_currencies=usd`
         );
-
-        if (!res.ok) {
-          throw new Error("Failed to load price");
-        }
-
         const data = await res.json();
-        const usd = data?.[mapId(from)]?.usd;
-
-        setPrice(typeof usd === "number" ? usd : null);
-      } catch (error) {
-        console.error(error);
+        setPrice(data?.[mapId(from)]?.usd || null);
+      } catch {
         setPrice(null);
-        setMessage("Unable to load live price right now.");
       } finally {
         setLoadingPrice(false);
       }
     };
-
     void loadPrice();
   }, [from]);
 
-  const numericAmount = useMemo(() => {
-    const parsed = Number(amount);
-    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
-  }, [amount]);
+  const numericAmount = useMemo(() => Number(amount) || 0, [amount]);
 
-  const grossUsdValue = useMemo(() => {
-    if (!price || numericAmount <= 0) return 0;
-    return numericAmount * price;
-  }, [numericAmount, price]);
+  const handleSwap = async () => {
+    try {
+      setMessage("");
+      setLoadingSwap(true);
 
-  const feeUsdValue = useMemo(() => {
-    if (grossUsdValue <= 0) return 0;
-    return (grossUsdValue * SWAP_FEE_PERCENT) / 100;
-  }, [grossUsdValue]);
+      if (!numericAmount || numericAmount <= 0) {
+        setMessage("Enter valid amount.");
+        return;
+      }
 
-  const netUsdValue = useMemo(() => {
-    if (grossUsdValue <= 0) return 0;
-    return grossUsdValue - feeUsdValue;
-  }, [grossUsdValue, feeUsdValue]);
+      if (from === to) {
+        setMessage("Choose different assets.");
+        return;
+      }
 
-  const estimate = grossUsdValue > 0 ? grossUsdValue.toFixed(2) : "0.00";
-  const feeDisplay = feeUsdValue > 0 ? feeUsdValue.toFixed(2) : "0.00";
-  const netDisplay = netUsdValue > 0 ? netUsdValue.toFixed(2) : "0.00";
+      // 🔐 Unlock wallet (you already use this system)
+      const password = prompt("Enter wallet password");
+      if (!password) return;
+
+      const wallet = await unlockEncryptedWallet(password);
+
+      const provider = getProvider(from);
+      const signer = new ethers.Wallet(wallet.privateKey, provider);
+
+      const amountWei = ethers.parseEther(amount);
+
+      // 🚀 CALL YOUR BACKEND
+      const res = await fetch("/api/swap/quote", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          chain: from === "BNB" ? "bnb" : "eth",
+          fromToken: TOKEN_MAP[from],
+          toToken: TOKEN_MAP[to],
+          amountWei: amountWei.toString(),
+          walletAddress: wallet.address,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!data.ok) {
+        throw new Error(data.error || "Swap failed");
+      }
+
+      const tx = await signer.sendTransaction({
+        to: data.tx.to,
+        data: data.tx.data,
+        value: BigInt(data.tx.value || "0"),
+      });
+
+      setMessage(`Swap sent! TX: ${tx.hash}`);
+
+      await tx.wait();
+
+      setMessage(`✅ Swap SUCCESS\nTX: ${tx.hash}`);
+
+    } catch (err: any) {
+      console.error(err);
+      setMessage(err.message || "Swap failed.");
+    } finally {
+      setLoadingSwap(false);
+    }
+  };
 
   const handleSwitch = () => {
     setFrom(to);
     setTo(from);
     setMessage("");
-  };
-
-  const handleSwap = () => {
-    setMessage("");
-
-    if (!amount || numericAmount <= 0) {
-      setMessage("Enter a valid amount.");
-      return;
-    }
-
-    if (from === to) {
-      setMessage("Choose different assets to swap.");
-      return;
-    }
-
-    setMessage(
-      `Swap prepared: ${numericAmount} ${from} → ${to}. Gross value: $${estimate}. Your platform fee (${SWAP_FEE_PERCENT}%): $${feeDisplay}. Net value after fee: $${netDisplay}.`
-    );
   };
 
   return (
@@ -107,96 +132,48 @@ export default function SwapPage() {
         <h1 className="mb-6 text-2xl font-semibold">Swap</h1>
 
         <div className="space-y-4">
-          <div>
-            <label className="mb-2 block text-sm text-gray-400">From</label>
-            <select
-              value={from}
-              onChange={(e) => setFrom(e.target.value as Asset)}
-              className="w-full rounded-xl bg-[#0a1730] p-3 outline-none"
-            >
-              <option value="ETH">ETH</option>
-              <option value="USDT">USDT</option>
-              <option value="BNB">BNB</option>
-            </select>
-          </div>
+          <select
+            value={from}
+            onChange={(e) => setFrom(e.target.value as Asset)}
+            className="w-full rounded-xl bg-[#0a1730] p-3"
+          >
+            <option>ETH</option>
+            <option>USDT</option>
+            <option>BNB</option>
+          </select>
 
-          <div className="flex justify-center">
-            <button
-              type="button"
-              onClick={handleSwitch}
-              className="rounded-full border border-white/10 bg-[#0a1730] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#102042]"
-            >
-              ⇅ Switch
-            </button>
-          </div>
+          <button onClick={handleSwitch}>⇅ Switch</button>
 
-          <div>
-            <label className="mb-2 block text-sm text-gray-400">To</label>
-            <select
-              value={to}
-              onChange={(e) => setTo(e.target.value as Asset)}
-              className="w-full rounded-xl bg-[#0a1730] p-3 outline-none"
-            >
-              <option value="ETH">ETH</option>
-              <option value="USDT">USDT</option>
-              <option value="BNB">BNB</option>
-            </select>
-          </div>
+          <select
+            value={to}
+            onChange={(e) => setTo(e.target.value as Asset)}
+            className="w-full rounded-xl bg-[#0a1730] p-3"
+          >
+            <option>ETH</option>
+            <option>USDT</option>
+            <option>BNB</option>
+          </select>
 
-          <div>
-            <label className="mb-2 block text-sm text-gray-400">Amount</label>
-            <input
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              placeholder="0.0"
-              className="w-full rounded-xl bg-[#0a1730] p-3 outline-none"
-            />
-          </div>
-
-          <div className="rounded-xl bg-[#0a1730] p-3 text-sm text-gray-300 space-y-2">
-            <div>
-              Live Price:{" "}
-              <b>
-                {loadingPrice
-                  ? "Loading..."
-                  : price !== null
-                  ? `$${price}`
-                  : "Unavailable"}
-              </b>
-            </div>
-
-            <div>
-              Gross Estimated Value: <b>${estimate}</b>
-            </div>
-
-            <div>
-              Platform Fee ({SWAP_FEE_PERCENT}%): <b>${feeDisplay}</b>
-            </div>
-
-            <div>
-              Net Value After Fee: <b>${netDisplay}</b>
-            </div>
-          </div>
+          <input
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0.0"
+            className="w-full rounded-xl bg-[#0a1730] p-3"
+          />
 
           <button
-            type="button"
             onClick={handleSwap}
-            className="w-full rounded-xl bg-cyan-600 p-3 font-semibold transition hover:bg-cyan-500"
+            disabled={loadingSwap}
+            className="w-full rounded-xl bg-cyan-600 p-3"
           >
-            Swap
+            {loadingSwap ? "Swapping..." : "Swap"}
           </button>
 
-          {message ? (
-            <div className="rounded-xl border border-white/10 bg-[#0a1730] p-3 text-sm text-white/85">
-              {message}
-            </div>
-          ) : null}
+          {message && <div className="text-sm">{message}</div>}
         </div>
 
         <div className="mt-6 text-center">
-          <Link href="/dashboard" className="text-cyan-400">
-            Back to Dashboard
-          </Link>
+          <Link href="/dashboard">Back</Link>
         </div>
       </div>
     </div>
