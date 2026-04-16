@@ -1,0 +1,20 @@
+{
+  "name": "CryptoHost Wallet",
+  "short_name": "CryptoHost",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#08152f",
+  "theme_color": "#08152f",
+  "icons": [
+    {
+      "src": "/cryptohost-logo.jpeg",
+      "sizes": "192x192",
+      "type": "image/jpeg"
+    },
+    {
+      "src": "/cryptohost-logo.jpeg",
+      "sizes": "512x512",
+      "type": "image/jpeg"
+    }
+  ]
+}
