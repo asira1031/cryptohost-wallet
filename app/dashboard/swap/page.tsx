@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
 type Asset = "ETH" | "USDT" | "BNB";
@@ -10,52 +10,80 @@ export default function SwapPage() {
   const [to, setTo] = useState<Asset>("USDT");
   const [amount, setAmount] = useState("");
   const [price, setPrice] = useState<number | null>(null);
+  const [loadingPrice, setLoadingPrice] = useState(false);
+  const [message, setMessage] = useState("");
 
-  // 🔗 Map asset to CoinGecko ID
-  const mapId = (a: Asset) => {
-    if (a === "ETH") return "ethereum";
-    if (a === "BNB") return "binancecoin";
+  const mapId = (asset: Asset) => {
+    if (asset === "ETH") return "ethereum";
+    if (asset === "BNB") return "binancecoin";
     return "tether";
   };
 
-  // 📊 Load price
   useEffect(() => {
     const loadPrice = async () => {
+      setLoadingPrice(true);
+      setMessage("");
+
       try {
         const res = await fetch(
           `https://api.coingecko.com/api/v3/simple/price?ids=${mapId(
             from
           )}&vs_currencies=usd`
         );
+
+        if (!res.ok) {
+          throw new Error("Failed to load price");
+        }
+
         const data = await res.json();
         const usd = data?.[mapId(from)]?.usd;
+
         setPrice(typeof usd === "number" ? usd : null);
-      } catch {
+      } catch (error) {
+        console.error(error);
         setPrice(null);
+        setMessage("Unable to load live price right now.");
+      } finally {
+        setLoadingPrice(false);
       }
     };
 
-    loadPrice();
+    void loadPrice();
   }, [from]);
 
-  // 💰 Estimate value
-  const estimate =
-    price && amount ? (Number(amount) * price).toFixed(2) : "0.00";
+  const estimate = useMemo(() => {
+    const numericAmount = Number(amount);
 
-  // 🔄 Swap handler (SAFE SIMULATION)
+    if (!price || !amount || !Number.isFinite(numericAmount) || numericAmount <= 0) {
+      return "0.00";
+    }
+
+    return (numericAmount * price).toFixed(2);
+  }, [amount, price]);
+
+  const handleSwitch = () => {
+    setFrom(to);
+    setTo(from);
+    setMessage("");
+  };
+
   const handleSwap = () => {
-    if (!amount || Number(amount) <= 0) {
-      alert("Enter valid amount");
+    setMessage("");
+
+    const numericAmount = Number(amount);
+
+    if (!amount || !Number.isFinite(numericAmount) || numericAmount <= 0) {
+      setMessage("Enter a valid amount.");
       return;
     }
 
     if (from === to) {
-      alert("Cannot swap same asset");
+      setMessage("Choose different assets to swap.");
       return;
     }
 
-    alert(
-      `Swap executed:\n${amount} ${from} → approx $${estimate} value in ${to}`
+    setMessage(
+      `Swap prepared: ${numericAmount} ${from} → ${to} (estimated value: $${estimate}).`
     );
   };
 
@@ -65,13 +93,12 @@ export default function SwapPage() {
         <h1 className="mb-6 text-2xl font-semibold">Swap</h1>
 
         <div className="space-y-4">
-          {/* FROM */}
           <div>
-            <label className="text-sm text-gray-400">From</label>
+            <label className="mb-2 block text-sm text-gray-400">From</label>
             <select
               value={from}
               onChange={(e) => setFrom(e.target.value as Asset)}
-              className="w-full rounded-xl bg-[#0a1730] p-3"
+              className="w-full rounded-xl bg-[#0a1730] p-3 outline-none"
             >
               <option value="ETH">ETH</option>
               <option value="USDT">USDT</option>
@@ -79,13 +106,22 @@ export default function SwapPage() {
             </select>
           </div>
 
-          {/* TO */}
+          <div className="flex justify-center">
+            <button
+              type="button"
+              onClick={handleSwitch}
+              className="rounded-full border border-white/10 bg-[#0a1730] px-4 py-2 text-sm font-medium text-white transition hover:bg-[#102042]"
+            >
+              ⇅ Switch
+            </button>
+          </div>
+
           <div>
-            <label className="text-sm text-gray-400">To</label>
+            <label className="mb-2 block text-sm text-gray-400">To</label>
             <select
               value={to}
               onChange={(e) => setTo(e.target.value as Asset)}
-              className="w-full rounded-xl bg-[#0a1730] p-3"
+              className="w-full rounded-xl bg-[#0a1730] p-3 outline-none"
             >
               <option value="ETH">ETH</option>
               <option value="USDT">USDT</option>
@@ -93,32 +129,47 @@ export default function SwapPage() {
             </select>
           </div>
 
-          {/* AMOUNT */}
           <div>
-            <label className="text-sm text-gray-400">Amount</label>
+            <label className="mb-2 block text-sm text-gray-400">Amount</label>
             <input
               value={amount}
               onChange={(e) => setAmount(e.target.value)}
               placeholder="0.0"
-              className="w-full rounded-xl bg-[#0a1730] p-3"
+              className="w-full rounded-xl bg-[#0a1730] p-3 outline-none"
             />
           </div>
 
-          {/* ESTIMATE */}
           <div className="rounded-xl bg-[#0a1730] p-3 text-sm text-gray-300">
-            Estimated Value: <b>${estimate}</b>
+            <div>
+              Live Price:{" "}
+              <b>
+                {loadingPrice
+                  ? "Loading..."
+                  : price !== null
+                  ? `$${price}`
+                  : "Unavailable"}
+              </b>
+            </div>
+            <div className="mt-2">
+              Estimated Value: <b>${estimate}</b>
+            </div>
           </div>
 
-          {/* SWAP BUTTON */}
           <button
+            type="button"
             onClick={handleSwap}
-            className="w-full rounded-xl bg-cyan-600 p-3 font-semibold hover:bg-cyan-500 transition"
+            className="w-full rounded-xl bg-cyan-600 p-3 font-semibold transition hover:bg-cyan-500"
           >
             Swap
           </button>
+
+          {message ? (
+            <div className="rounded-xl border border-white/10 bg-[#0a1730] p-3 text-sm text-white/85">
+              {message}
+            </div>
+          ) : null}
         </div>
 
-        {/* BACK */}
         <div className="mt-6 text-center">
           <Link href="/dashboard" className="text-cyan-400">
             Back to Dashboard

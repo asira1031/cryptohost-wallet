@@ -1110,9 +1110,12 @@ export default function WalletPage() {
           Markets
         </Link>
 
-        <span className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70">
-          Swap
-        </span>
+        <Link
+       href="/dashboard/swap"
+       className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70"
+>
+        Swap
+      </Link>
 
         <Link
           href="/dashboard/history"
