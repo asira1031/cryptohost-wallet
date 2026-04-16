@@ -1,5 +1,6 @@
 "use client";
 
+import { getProvider } from "@/app/lib/wallet-provider";
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -492,11 +493,13 @@ export default function WalletPage() {
 
       setSending(true);
 
-      const signer = new ethers.Wallet(cleanedKey, provider);
-      const fromAddress = signer.address;
-      const network = await provider.getNetwork();
-      const chainId = Number(network.chainId);
+      const activeProvider = getProvider(selectedAsset);
 
+      const signer = new ethers.Wallet(cleanedKey, activeProvider);
+      const fromAddress = signer.address;
+
+      const network = await activeProvider.getNetwork();
+      const chainId = Number(network.chainId);
       if (selectedAsset === "BNB" && chainId !== 56) {
         setError("BNB sending requires a BNB Chain RPC/provider.");
         return;
