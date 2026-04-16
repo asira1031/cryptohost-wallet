@@ -5,6 +5,8 @@ import Link from "next/link";
 
 type Asset = "ETH" | "USDT" | "BNB";
 
+const SWAP_FEE_PERCENT = 1; // ✅ your platform fee
+
 export default function SwapPage() {
   const [from, setFrom] = useState<Asset>("ETH");
   const [to, setTo] = useState<Asset>("USDT");
@@ -51,15 +53,29 @@ export default function SwapPage() {
     void loadPrice();
   }, [from]);
 
-  const estimate = useMemo(() => {
-    const numericAmount = Number(amount);
+  const numericAmount = useMemo(() => {
+    const parsed = Number(amount);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
+  }, [amount]);
 
-    if (!price || !amount || !Number.isFinite(numericAmount) || numericAmount <= 0) {
-      return "0.00";
-    }
+  const grossUsdValue = useMemo(() => {
+    if (!price || numericAmount <= 0) return 0;
+    return numericAmount * price;
+  }, [numericAmount, price]);
 
-    return (numericAmount * price).toFixed(2);
-  }, [amount, price]);
+  const feeUsdValue = useMemo(() => {
+    if (grossUsdValue <= 0) return 0;
+    return (grossUsdValue * SWAP_FEE_PERCENT) / 100;
+  }, [grossUsdValue]);
+
+  const netUsdValue = useMemo(() => {
+    if (grossUsdValue <= 0) return 0;
+    return grossUsdValue - feeUsdValue;
+  }, [grossUsdValue, feeUsdValue]);
+
+  const estimate = grossUsdValue > 0 ? grossUsdValue.toFixed(2) : "0.00";
+  const feeDisplay = feeUsdValue > 0 ? feeUsdValue.toFixed(2) : "0.00";
+  const netDisplay = netUsdValue > 0 ? netUsdValue.toFixed(2) : "0.00";
 
   const handleSwitch = () => {
     setFrom(to);
@@ -70,9 +86,7 @@ export default function SwapPage() {
   const handleSwap = () => {
     setMessage("");
 
-    const numericAmount = Number(amount);
-
-    if (!amount || !Number.isFinite(numericAmount) || numericAmount <= 0) {
+    if (!amount || numericAmount <= 0) {
       setMessage("Enter a valid amount.");
       return;
     }
@@ -83,7 +97,7 @@ export default function SwapPage() {
     }
 
     setMessage(
-      `Swap prepared: ${numericAmount} ${from} → ${to} (estimated value: $${estimate}).`
+      `Swap prepared: ${numericAmount} ${from} → ${to}. Gross value: $${estimate}. Your platform fee (${SWAP_FEE_PERCENT}%): $${feeDisplay}. Net value after fee: $${netDisplay}.`
     );
   };
 
@@ -139,7 +153,7 @@ export default function SwapPage() {
             />
           </div>
 
-          <div className="rounded-xl bg-[#0a1730] p-3 text-sm text-gray-300">
+          <div className="rounded-xl bg-[#0a1730] p-3 text-sm text-gray-300 space-y-2">
             <div>
               Live Price:{" "}
               <b>
@@ -150,8 +164,17 @@ export default function SwapPage() {
                   : "Unavailable"}
               </b>
             </div>
-            <div className="mt-2">
-              Estimated Value: <b>${estimate}</b>
+
+            <div>
+              Gross Estimated Value: <b>${estimate}</b>
+            </div>
+
+            <div>
+              Platform Fee ({SWAP_FEE_PERCENT}%): <b>${feeDisplay}</b>
+            </div>
+
+            <div>
+              Net Value After Fee: <b>${netDisplay}</b>
             </div>
           </div>
 
