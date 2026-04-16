@@ -237,7 +237,11 @@ export default function MarketPage() {
                   Next Upgrade
                 </p>
                 <p className="mt-2 text-sm text-white/80">
-                  ETH ↔ USDT and token swap routing will be added in the next phase.
+                  Swap Route
+Active
+
+Real-time swap routing is now enabled.
+Transactions are executed via integrated liquidity providers.
                 </p>
               </div>
             </div>
