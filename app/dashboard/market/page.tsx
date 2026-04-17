@@ -227,15 +227,8 @@ export default function MarketPage() {
             <div className="mt-4 rounded-[24px] border border-white/8 bg-[#0a1821] p-3">
               <div className="mb-2 flex items-center justify-between">
                 <p className="text-sm font-semibold text-white/90">Swap Route</p>
-                <span className="rounded-full border border-amber-400/20 bg-amber-500/10 px-3 py-1 text-[10px] font-semibold text-amber-200">
-                  Coming Soon
-                </span>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-[#06131b] p-3">
-                <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">
-                  Next Upgrade
-                </p>
+               
+                
                 <p className="mt-2 text-sm text-white/80">
                   Swap Route
 Active
