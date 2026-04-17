@@ -2,7 +2,7 @@
 import TronWalletCard from "./components/TronWalletCard";
 import { getProvider } from "@/app/lib/wallet-provider";
 import { QRCodeSVG } from "qrcode.react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
 import { ethers } from "ethers";
 import { FEE_PERCENT, FEE_WALLET } from "../../lib/wallet-config";
@@ -15,7 +15,31 @@ import {
 import { provider } from "../../lib/wallet-provider";
 import { isAuthEnabled, verifyPin } from "@/app/lib/cryptohost-auth";
 import { supabase } from "@/app/lib/supabase/client";
+type MarketTickerProps = {
+  label: string;
+  value: string;
+  sub?: string;
+};
 
+function MarketTicker({
+  label,
+  value,
+  sub,
+  onClick,
+}: MarketTickerProps & { onClick?: () => void }) {
+  return (
+    <div
+  onClick={onClick}
+  className="min-w-[120px] cursor-pointer rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 shadow-[0_8px_30px_rgba(0,0,0,0.18)] backdrop-blur transition hover:border-cyan-400/40 hover:bg-cyan-500/10"
+>
+      <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/45">
+        {label}
+      </div>
+      <div className="mt-1 text-lg font-bold text-white">{value}</div>
+      {sub ? <div className="mt-1 text-xs text-white/45">{sub}</div> : null}
+    </div>
+  );
+}
 const MIN_FEE_ETH = 0.00002;
 const USDT_CONTRACT = "0xdAC17F958D2ee523a2206206994597C13D831ec7";
 
@@ -109,6 +133,7 @@ function copyToClipboard(value: string) {
 }
 
 export default function WalletPage() {
+  
   const [activeTab, setActiveTab] = useState<TabKey>("send");
   const [selectedAsset, setSelectedAsset] = useState<SendAsset>("ETH");
   const [preferredMethod, setPreferredMethod] = useState<SecurityMethod>(null);
@@ -121,6 +146,18 @@ export default function WalletPage() {
   const [ethBalance, setEthBalance] = useState("0.0000");
   const [usdtBalance, setUsdtBalance] = useState("0.00");
   const [usdtSymbol, setUsdtSymbol] = useState("USDT");
+
+  const sendSectionRef = useRef<HTMLDivElement | null>(null);
+
+  const [marketPrices, setMarketPrices] = useState<{
+  eth?: number;
+  usdt?: number;
+  trx?: number;
+  bnb?: number;
+  ethereum?: number;
+  tron?: number;
+  binancecoin?: number;
+}>({});
 
   const [password, setPassword] = useState("");
   const [isUnlocked, setIsUnlocked] = useState(false);
@@ -151,6 +188,39 @@ export default function WalletPage() {
   const biometricSupported =
     typeof window !== "undefined" &&
     typeof window.PublicKeyCredential !== "undefined";
+
+   const safeNum = (value: unknown) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+};
+
+const formatAsset = (value: number, digits = 4) =>
+  value.toLocaleString(undefined, {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: digits,
+  });
+
+const ethAmount = safeNum(ethBalance);
+const usdtErc20Amount = safeNum(usdtBalance);
+
+// temporary safe fallback muna
+const trxAmount = 0;
+const bnbAmount = 0;
+const usdtTronAmount = 0;
+
+const combinedUsdtAmount = usdtErc20Amount + usdtTronAmount;
+
+// temporary safe fallback prices muna
+const ethUsdPrice = safeNum(marketPrices?.eth ?? marketPrices?.ethereum);
+const usdtUsdPrice = safeNum(marketPrices?.usdt ?? 1);
+const trxUsdPrice = safeNum(marketPrices?.trx ?? marketPrices?.tron);
+const bnbUsdPrice = safeNum(marketPrices?.bnb ?? marketPrices?.binancecoin);
+
+const totalUsdValue =
+  ethAmount * ethUsdPrice +
+  combinedUsdtAmount * usdtUsdPrice +
+  trxAmount * trxUsdPrice +
+  bnbAmount * bnbUsdPrice; 
 
   const createWallet = async () => {
     try {
@@ -800,60 +870,96 @@ if (!activeProvider) {
           </div>
         )}
       </div>
+<div className="mb-4 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-r from-[#0f172a] via-[#111827] to-[#0b1220] shadow-xl">
+  <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+    <div>
+      <p className="text-[10px] uppercase tracking-[0.25em] text-emerald-300/70">
+        Wallet Market
+      </p>
+      <p className="text-sm font-semibold text-white">Asset Overview</p>
+    </div>
 
-      <div className="mb-3 grid grid-cols-3 gap-2">
-        <div className="rounded-2xl border border-white/8 bg-[#091720] p-3">
-          <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">
-            ETH
-          </p>
-          <p className="mt-2 text-xl font-bold">{ethBalance}</p>
-          <p className="mt-1 text-[10px] text-white/45">Ethereum Mainnet</p>
-        </div>
+    <div className="text-right">
+      <p className="text-[10px] text-white/40">Total USD</p>
+      <p className="text-lg font-bold text-white">
+        ${formatUsd(totalUsdValue)}
+      </p>
+    </div>
+  </div>
 
-        <div className="rounded-2xl border border-white/8 bg-[#091720] p-3">
-          <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">
-            {usdtSymbol}
-          </p>
-          <p className="mt-2 text-xl font-bold">{usdtBalance}</p>
-          <p className="mt-1 text-[10px] text-white/45">Stable balance</p>
-        </div>
+  <div className="grid grid-cols-2 gap-2 p-3 md:grid-cols-5">
+    <MarketTicker
+  label="ETH"
+  value={formatAsset(ethAmount, 6)}
+  onClick={() => {
+    setSelectedAsset("ETH");
+    sendSectionRef.current?.scrollIntoView({ behavior: "smooth" });
+  }}
+/>
 
-        <div className="rounded-2xl border border-white/8 bg-[#091720] p-3">
-          <p className="text-[9px] uppercase tracking-[0.22em] text-white/45">
-            USD
-          </p>
-          <p className="mt-2 text-xl font-bold">${formatUsd(estimatedUsd)}</p>
-          <p className="mt-1 text-[10px] text-white/45">Estimated value</p>
-        </div>
-      </div>
+    <MarketTicker
+  label="USDT"
+  value={formatAsset(combinedUsdtAmount, 2)}
+  sub="ERC20 + TRC20"
+  onClick={() => {
+    setSelectedAsset("USDT");
+    sendSectionRef.current?.scrollIntoView({ behavior: "smooth" });
+  }}
+/>
 
-      <div className="mt-4 rounded-[24px] border border-white/8 bg-[#0a1821] p-3">
-        <div className="mb-3 flex gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab("send")}
-            className={`rounded-full px-4 py-2 text-xs font-medium ${
-              activeTab === "send"
-                ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
-                : "border border-white/10 bg-white/10 text-white/75"
-            }`}
-          >
-            Send
-          </button>
+    <MarketTicker
+  label="TRX"
+  value={formatAsset(trxAmount, 2)}
+  onClick={() => {
+    setSelectedAsset("TRX");
+    sendSectionRef.current?.scrollIntoView({ behavior: "smooth" });
+  }}
+/>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab("receive")}
-            className={`rounded-full px-4 py-2 text-xs font-medium ${
-              activeTab === "receive"
-                ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
-                : "border border-white/10 bg-white/10 text-white/75"
-            }`}
-          >
-            Receive
-          </button>
-        </div>
+   <MarketTicker
+  label="BNB"
+  value={formatAsset(bnbAmount, 6)}
+  onClick={() => {
+    setSelectedAsset("BNB");
+    sendSectionRef.current?.scrollIntoView({ behavior: "smooth" });
+  }}
+/>
+   <MarketTicker
+  label="USD"
+  value={`$${formatUsd(totalUsdValue)}`}
+  onClick={() => {
+    sendSectionRef.current?.scrollIntoView({ behavior: "smooth" });
+  }}
+/>
+  </div>
+</div>
 
+<div className="mt-4 rounded-[24px] border border-white/8 bg-[#0a1821] p-3">
+  <div className="mb-3 flex gap-2">
+    <button
+      type="button"
+      onClick={() => setActiveTab("send")}
+      className={`rounded-full px-4 py-2 text-xs font-medium ${
+        activeTab === "send"
+          ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
+          : "border border-white/10 bg-white/10 text-white/75"
+      }`}
+    >
+      Send
+    </button>
+
+    <button
+      type="button"
+      onClick={() => setActiveTab("receive")}
+      className={`rounded-full px-4 py-2 text-xs font-medium ${
+        activeTab === "receive"
+          ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
+          : "border border-white/10 bg-white/10 text-white/75"
+      }`}
+    >
+      Receive
+    </button>
+  </div>
         {activeTab === "send" ? (
           <div className="space-y-3">
             <div>

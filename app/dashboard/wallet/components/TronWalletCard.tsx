@@ -152,51 +152,29 @@ export default function TronWalletCard() {
       </div>
 
       {wallet ? (
-        <>
-          <div className="space-y-3">
-            <div className="rounded-2xl border border-white/10 bg-[#06131b] p-3">
-              <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">
-                TRON Address
-              </p>
-              <p className="mt-2 break-all text-sm text-white/85">
-                {wallet.address}
-              </p>
+        <div className="space-y-3">
+          <div className="rounded-2xl border border-white/10 bg-[#06131b] p-3">
+            <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">
+              TRON Address
+            </p>
+            <p className="mt-2 break-all text-sm text-white/85">
+              {wallet.address}
+            </p>
 
-              <button
-                type="button"
-                onClick={() => copyToClipboard(wallet.address, "Address")}
-                className="mt-3 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium text-white"
-              >
-                Copy Address
-              </button>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-2xl border border-white/10 bg-[#06131b] p-3">
-                <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">
-                  TRX Balance
-                </p>
-                <p className="mt-2 text-sm text-white/85">
-                  {loading ? "Loading..." : (trxBalance ?? 0).toString()}
-                </p>
-              </div>
-
-              <div className="rounded-2xl border border-white/10 bg-[#06131b] p-3">
-                <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">
-                  USDT TRC20
-                </p>
-                <p className="mt-2 text-sm text-white/85">
-                  {loading ? "Loading..." : (usdtBalance ?? 0).toString()}
-                </p>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-3 text-xs text-yellow-100">
-              Local test mode only. This TRON wallet is stored in your browser for now.
-              Do not remove it unless you already backed up the private key.
-            </div>
+            <button
+              type="button"
+              onClick={() => copyToClipboard(wallet.address, "Address")}
+              className="mt-3 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium text-white"
+            >
+              Copy Address
+            </button>
           </div>
-        </>
+
+          <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-3 text-xs text-yellow-100">
+            Local test mode only. This TRON wallet is stored in your browser for
+            now. Do not remove it unless you already backed up the private key.
+          </div>
+        </div>
       ) : (
         <div className="rounded-2xl border border-white/10 bg-[#06131b] p-4 text-sm text-white/75">
           No TRON wallet found yet. Click{" "}
