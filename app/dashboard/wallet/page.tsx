@@ -1,5 +1,5 @@
 "use client";
-
+import TronWalletCard from "./components/TronWalletCard";
 import { getProvider } from "@/app/lib/wallet-provider";
 import { QRCodeSVG } from "qrcode.react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -34,7 +34,7 @@ const erc20WriteAbi = [
 
 type TabKey = "send" | "receive";
 type TxStatus = "pending" | "confirmed" | "failed";
-type SendAsset = "ETH" | "USDT" | "BNB";
+type SendAsset = "ETH" | "USDT" | "BNB" | "TRX" | "USDT_TRC20";
 type SecurityMethod = "email" | "phone" | "biometric" | null;
 
 type WalletTx = {
@@ -493,7 +493,22 @@ export default function WalletPage() {
 
       setSending(true);
 
-      const activeProvider = getProvider(selectedAsset);
+      const activeProvider =
+  selectedAsset === "TRX" || selectedAsset === "USDT_TRC20"
+    ? null
+    : getProvider(selectedAsset as "ETH" | "USDT" | "BNB");
+
+// 👉 block TRON assets from ETH flow
+if (selectedAsset === "TRX" || selectedAsset === "USDT_TRC20") {
+  setError("TRON assets use the TRON wallet flow, not the ETH/BNB provider.");
+  return;
+}
+
+// 👉 safety check
+if (!activeProvider) {
+  setError("No provider available for selected asset.");
+  return;
+}
 
       const signer = new ethers.Wallet(cleanedKey, activeProvider);
       const fromAddress = signer.address;
@@ -853,6 +868,8 @@ export default function WalletPage() {
                 <option value="ETH">ETH</option>
                 <option value="USDT">USDT (ERC20)</option>
                 <option value="BNB">BNB</option>
+                <option value="TRX">TRX</option>
+                <option value="USDT_TRC20">USDT (TRC20)</option>
               </select>
             </div>
 
@@ -1124,7 +1141,9 @@ export default function WalletPage() {
           Wallet
         </Link>
       </div>
-
+    <div className="mt-6">
+    <TronWalletCard />
+    </div>
       {showAuthPrompt && (
         <div className="mt-4 rounded-2xl border border-amber-400/25 bg-amber-500/10 p-4">
           <p className="mb-3 text-sm font-semibold text-amber-200">
