@@ -1,5 +1,7 @@
 import { TronWeb } from "tronweb";
-import { TRON_FULL_HOST } from "./config";
+
+const TRON_FULL_HOST =
+  process.env.NEXT_PUBLIC_TRON_FULL_HOST || "https://api.trongrid.io";
 
 export function getTronWeb(privateKey?: string) {
   const tronWeb = new TronWeb({
@@ -7,14 +9,14 @@ export function getTronWeb(privateKey?: string) {
     headers: {
       "TRON-PRO-API-KEY": process.env.TRON_PRO_API_KEY || "",
     },
-    privateKey,
+    ...(privateKey ? { privateKey } : {}),
   });
 
   if (privateKey) {
-    const derivedAddress = tronWeb.address.fromPrivateKey(privateKey);
+    const address = tronWeb.address.fromPrivateKey(privateKey);
 
-    if (derivedAddress) {
-      tronWeb.setAddress(derivedAddress);
+    if (address) {
+      tronWeb.setAddress(address);
     }
   }
 
