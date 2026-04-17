@@ -514,239 +514,266 @@ const totalUsdValue =
     }
   };
 
-  const handleSendAsset = async () => {
-    setError("");
-    setSuccess("");
-    setLastTxHash("");
+const handleSendAsset = async () => {
+  setError("");
+  setSuccess("");
+  setLastTxHash("");
 
-    try {
-      if (!isUnlocked || !privateKey) {
-        setError("Unlock wallet first.");
-        return;
-      }
-
-      if (!walletAddress) {
-        setError("No wallet loaded.");
-        return;
-      }
-
-      if (!otpVerified) {
-        setError("Verify OTP first.");
-        return;
-      }
-
-      if (!recipient.trim()) {
-        setError("Please enter recipient address.");
-        return;
-      }
-
-      if (!ethers.isAddress(recipient.trim())) {
-        setError("Recipient address is invalid.");
-        return;
-      }
-
-      if (!sendAmount.trim() || Number(sendAmount) <= 0) {
-        setError(`Please enter a valid ${selectedAsset} amount.`);
-        return;
-      }
-
-      const numericAmount = Number(sendAmount);
-      if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-        setError(`Invalid ${selectedAsset} amount.`);
-        return;
-      }
-
-      let cleanedKey = privateKey.trim();
-      if (!cleanedKey.startsWith("0x")) {
-        cleanedKey = `0x${cleanedKey}`;
-      }
-
-      setSending(true);
-
-      const activeProvider =
-  selectedAsset === "TRX" || selectedAsset === "USDT_TRC20"
-    ? null
-    : getProvider(selectedAsset as "ETH" | "USDT" | "BNB");
-
-// 👉 block TRON assets from ETH flow
-if (selectedAsset === "TRX" || selectedAsset === "USDT_TRC20") {
-  setError("TRON assets use the TRON wallet flow, not the ETH/BNB provider.");
-  return;
-}
-
-// 👉 safety check
-if (!activeProvider) {
-  setError("No provider available for selected asset.");
-  return;
-}
-
-      const signer = new ethers.Wallet(cleanedKey, activeProvider);
-      const fromAddress = signer.address;
-
-      const network = await activeProvider.getNetwork();
-      const chainId = Number(network.chainId);
-      if (selectedAsset === "BNB" && chainId !== 56) {
-        setError("BNB sending requires a BNB Chain RPC/provider.");
-        return;
-      }
-
-      if (selectedAsset === "USDT") {
-        if (chainId !== 1) {
-          setError("This USDT contract is configured for Ethereum Mainnet only.");
-          return;
-        }
-
-        const usdtContract = new ethers.Contract(
-          USDT_CONTRACT,
-          erc20WriteAbi,
-          signer
-        );
-
-        const decimals: number = await usdtContract.decimals();
-        const amountUnits = ethers.parseUnits(sendAmount, decimals);
-
-        const tokenBalance = await usdtContract.balanceOf(fromAddress);
-        if (tokenBalance < amountUnits) {
-          setError("Insufficient USDT balance.");
-          return;
-        }
-
-        const gasBalance = await provider.getBalance(fromAddress);
-        const fastGasPrice = ethers.parseUnits("10", "gwei");
-        const gasBufferWei = fastGasPrice * BigInt(80000);
-
-        if (gasBalance < gasBufferWei) {
-          setError("Insufficient ETH balance for USDT network gas.");
-          return;
-        }
-
-        const sendTx = await usdtContract.transfer(recipient.trim(), amountUnits);
-        setLastTxHash(sendTx.hash);
-
-        appendWalletTx({
-          id: `${Date.now()}-${sendTx.hash}`,
-          walletAddress: fromAddress,
-          txHash: sendTx.hash,
-          token: "USDT",
-          amount: sendAmount,
-          to: recipient.trim(),
-          status: "pending",
-          createdAt: new Date().toISOString(),
-        });
-
-        const receipt = await sendTx.wait();
-
-        appendWalletTx({
-          id: `${Date.now()}-${sendTx.hash}-final`,
-          walletAddress: fromAddress,
-          txHash: sendTx.hash,
-          token: "USDT",
-          amount: sendAmount,
-          to: recipient.trim(),
-          status: receipt?.status === 1 ? "confirmed" : "failed",
-          createdAt: new Date().toISOString(),
-        });
-
-        setSuccess("USDT sent successfully.");
-      } else {
-        const totalAmount = numericAmount;
-        const rawFeeAmount = (totalAmount * FEE_PERCENT) / 100;
-        const feeAmount = rawFeeAmount >= MIN_FEE_ETH ? rawFeeAmount : 0;
-        const payoutAmount = totalAmount - feeAmount;
-
-        if (payoutAmount <= 0) {
-          setError("Amount is too small after fee deduction.");
-          return;
-        }
-
-        const totalWei = ethers.parseEther(totalAmount.toFixed(18));
-        const feeWei = ethers.parseEther(feeAmount.toFixed(18));
-
-        const balanceWei = await activeProvider.getBalance(fromAddress);
-
-        const fastGasPrice = ethers.parseUnits("10", "gwei");
-        const estimatedGasPerTx = BigInt(21000);
-        const txCount = feeWei > BigInt(0) ? BigInt(2) : BigInt(1);
-        const gasBufferWei = fastGasPrice * estimatedGasPerTx * txCount;
-
-        if (balanceWei < totalWei + gasBufferWei) {
-          setError(
-            `Insufficient ${selectedAsset} balance for transfer, service fee, and network gas.`
-          );
-          return;
-        }
-
-        let feeTxHash = "";
-
-        if (feeWei > BigInt(0)) {
-          const feeTx = await signer.sendTransaction({
-            to: FEE_WALLET,
-            value: feeWei,
-            gasPrice: fastGasPrice,
-          });
-
-          feeTxHash = feeTx.hash;
-          await feeTx.wait();
-        }
-
-        const sendTx = await signer.sendTransaction({
-          to: recipient.trim(),
-          value: ethers.parseEther(payoutAmount.toString()),
-          gasPrice: fastGasPrice,
-        });
-
-        setLastTxHash(sendTx.hash);
-
-        appendWalletTx({
-          id: `${Date.now()}-${sendTx.hash}`,
-          walletAddress: fromAddress,
-          txHash: sendTx.hash,
-          token: selectedAsset,
-          amount: payoutAmount.toString(),
-          to: recipient.trim(),
-          status: "pending",
-          createdAt: new Date().toISOString(),
-        });
-
-        const receipt = await sendTx.wait();
-
-        appendWalletTx({
-          id: `${Date.now()}-${sendTx.hash}-final`,
-          walletAddress: fromAddress,
-          txHash: sendTx.hash,
-          token: selectedAsset,
-          amount: payoutAmount.toString(),
-          to: recipient.trim(),
-          status: receipt?.status === 1 ? "confirmed" : "failed",
-          createdAt: new Date().toISOString(),
-        });
-
-        setSuccess(
-          feeAmount > 0
-            ? `${selectedAsset} transaction sent successfully. ${feeAmount.toFixed(
-                6
-              )} ${selectedAsset} fee was sent to the fee wallet.${
-                feeTxHash ? ` Fee TX: ${feeTxHash}` : ""
-              }`
-            : `${selectedAsset} transaction sent successfully. No fee was charged because the calculated fee was below the minimum threshold.`
-        );
-      }
-
-      setRecipient("");
-      setSendAmount("");
-      setOtpVerified(false);
-      setOtpSent(false);
-      setOtpCode("");
-      await loadWalletData(fromAddress);
-    } catch (err: any) {
-      console.error(err);
-      setError(err?.shortMessage || err?.message || "Transaction failed.");
-    } finally {
-      setSending(false);
-      setPendingSend(false);
+  try {
+    if (!isUnlocked || !privateKey) {
+      setError("Unlock wallet first.");
+      return;
     }
-  };
 
+    if (!walletAddress) {
+      setError("No wallet loaded.");
+      return;
+    }
+
+    if (!otpVerified) {
+      setError("Verify OTP first.");
+      return;
+    }
+
+    if (!recipient.trim()) {
+      setError("Please enter recipient address.");
+      return;
+    }
+
+    if (!ethers.isAddress(recipient.trim())) {
+      setError("Recipient address is invalid.");
+      return;
+    }
+
+    if (!sendAmount.trim() || Number(sendAmount) <= 0) {
+      setError(`Please enter a valid ${selectedAsset} amount.`);
+      return;
+    }
+
+    const numericAmount = Number(sendAmount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      setError(`Invalid ${selectedAsset} amount.`);
+      return;
+    }
+
+    let cleanedKey = privateKey.trim();
+    if (!cleanedKey.startsWith("0x")) {
+      cleanedKey = `0x${cleanedKey}`;
+    }
+
+    setSending(true);
+
+    const isTronAsset =
+      selectedAsset === "TRX" || selectedAsset === "USDT_TRC20";
+
+    const activeProvider = isTronAsset
+      ? null
+      : getProvider(selectedAsset as "ETH" | "USDT" | "BNB");
+
+    if (isTronAsset) {
+      setError("TRON assets use the TRON wallet flow, not the ETH/BNB provider.");
+      return;
+    }
+
+    if (!activeProvider) {
+      setError("No provider available for selected asset.");
+      return;
+    }
+
+    const signer = new ethers.Wallet(cleanedKey, activeProvider);
+    const fromAddress = signer.address;
+
+    const network = await activeProvider.getNetwork();
+    const chainId = Number(network.chainId);
+
+    if (selectedAsset === "BNB" && chainId !== 56) {
+      setError("BNB sending requires a BNB Chain RPC/provider.");
+      return;
+    }
+
+    if (selectedAsset === "USDT") {
+      if (chainId !== 1) {
+        setError("This USDT contract is configured for Ethereum Mainnet only.");
+        return;
+      }
+
+      const usdtContract = new ethers.Contract(
+        USDT_CONTRACT,
+        erc20WriteAbi,
+        signer
+      );
+
+      const decimals: number = await usdtContract.decimals();
+      const amountUnits = ethers.parseUnits(sendAmount, decimals);
+
+      const tokenBalance = await usdtContract.balanceOf(fromAddress);
+      if (tokenBalance < amountUnits) {
+        setError("Insufficient USDT balance.");
+        return;
+      }
+
+      const gasBalance = await activeProvider.getBalance(fromAddress);
+      const feeData = await activeProvider.getFeeData();
+
+      const gasPriceForCheck =
+        feeData.maxFeePerGas ??
+        feeData.gasPrice ??
+        ethers.parseUnits("10", "gwei");
+
+      const gasBufferWei = gasPriceForCheck * BigInt(80000);
+
+      if (gasBalance < gasBufferWei) {
+        setError("Insufficient ETH balance for USDT network gas.");
+        return;
+      }
+
+      const sendTx = await usdtContract.transfer(recipient.trim(), amountUnits);
+      setLastTxHash(sendTx.hash);
+
+      appendWalletTx({
+        id: `${Date.now()}-${sendTx.hash}`,
+        walletAddress: fromAddress,
+        txHash: sendTx.hash,
+        token: "USDT",
+        amount: sendAmount,
+        to: recipient.trim(),
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      });
+
+      const receipt = await sendTx.wait();
+
+      appendWalletTx({
+        id: `${Date.now()}-${sendTx.hash}-final`,
+        walletAddress: fromAddress,
+        txHash: sendTx.hash,
+        token: "USDT",
+        amount: sendAmount,
+        to: recipient.trim(),
+        status: receipt?.status === 1 ? "confirmed" : "failed",
+        createdAt: new Date().toISOString(),
+      });
+
+      setSuccess("USDT sent successfully.");
+    } else {
+      const totalAmount = numericAmount;
+      const rawFeeAmount = (totalAmount * FEE_PERCENT) / 100;
+      const feeAmount = rawFeeAmount >= MIN_FEE_ETH ? rawFeeAmount : 0;
+      const payoutAmount = totalAmount - feeAmount;
+
+      if (payoutAmount <= 0) {
+        setError("Amount is too small after fee deduction.");
+        return;
+      }
+
+      const totalWei = ethers.parseEther(totalAmount.toFixed(18));
+      const feeWei = ethers.parseEther(feeAmount.toFixed(18));
+      const payoutWei = ethers.parseEther(payoutAmount.toFixed(18));
+
+      const balanceWei = await activeProvider.getBalance(fromAddress);
+      const feeData = await activeProvider.getFeeData();
+
+      const feeOverrides =
+        feeData.maxFeePerGas && feeData.maxPriorityFeePerGas
+          ? {
+              maxFeePerGas:
+                (feeData.maxFeePerGas * BigInt(120)) / BigInt(100),
+              maxPriorityFeePerGas:
+                (feeData.maxPriorityFeePerGas * BigInt(120)) / BigInt(100),
+            }
+          : feeData.gasPrice
+          ? {
+              gasPrice: (feeData.gasPrice * BigInt(120)) / BigInt(100),
+            }
+          : {};
+
+      const gasPriceForCheck =
+        feeData.maxFeePerGas ??
+        feeData.gasPrice ??
+        ethers.parseUnits("10", "gwei");
+
+      const estimatedGasPerTx = BigInt(21000);
+      const txCount = feeWei > BigInt(0) ? BigInt(2) : BigInt(1);
+      const gasBufferWei = gasPriceForCheck * estimatedGasPerTx * txCount;
+
+      if (balanceWei < totalWei + gasBufferWei) {
+        setError(
+          `Insufficient ${selectedAsset} balance for transfer, service fee, and network gas.`
+        );
+        return;
+      }
+
+      let feeTxHash = "";
+
+      if (feeWei > BigInt(0)) {
+        const feeTx = await signer.sendTransaction({
+          to: FEE_WALLET,
+          value: feeWei,
+          ...feeOverrides,
+        });
+
+        feeTxHash = feeTx.hash;
+        await feeTx.wait();
+      }
+
+      const sendTx = await signer.sendTransaction({
+        to: recipient.trim(),
+        value: payoutWei,
+        ...feeOverrides,
+      });
+
+      setLastTxHash(sendTx.hash);
+
+      appendWalletTx({
+        id: `${Date.now()}-${sendTx.hash}`,
+        walletAddress: fromAddress,
+        txHash: sendTx.hash,
+        token: selectedAsset,
+        amount: payoutAmount.toString(),
+        to: recipient.trim(),
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      });
+
+      const receipt = await sendTx.wait();
+
+      appendWalletTx({
+        id: `${Date.now()}-${sendTx.hash}-final`,
+        walletAddress: fromAddress,
+        txHash: sendTx.hash,
+        token: selectedAsset,
+        amount: payoutAmount.toString(),
+        to: recipient.trim(),
+        status: receipt?.status === 1 ? "confirmed" : "failed",
+        createdAt: new Date().toISOString(),
+      });
+
+      setSuccess(
+        feeAmount > 0
+          ? `${selectedAsset} transaction sent successfully. ${feeAmount.toFixed(
+              6
+            )} ${selectedAsset} fee was sent to the fee wallet.${
+              feeTxHash ? ` Fee TX: ${feeTxHash}` : ""
+            }`
+          : `${selectedAsset} transaction sent successfully. No fee was charged because the calculated fee was below the minimum threshold.`
+      );
+    }
+
+    setRecipient("");
+    setSendAmount("");
+    setOtpVerified(false);
+    setOtpSent(false);
+    setOtpCode("");
+
+    await loadWalletData(fromAddress);
+  } catch (err: any) {
+    console.error(err);
+    setError(err?.shortMessage || err?.message || "Transaction failed.");
+  } finally {
+    setSending(false);
+    setPendingSend(false);
+  }
+};
   const startProtectedSend = () => {
     setError("");
     setSuccess("");
