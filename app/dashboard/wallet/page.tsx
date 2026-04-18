@@ -354,6 +354,7 @@ function copyToClipboard(value: string) {
 }
 
 export default function WalletPage() {
+  const [lang, setLang] = useState("en");
   const [activeTab, setActiveTab] = useState<TabKey>("send");
   const [selectedAsset, setSelectedAsset] = useState<SendAsset>("ETH");
   const [preferredMethod, setPreferredMethod] = useState<SecurityMethod>(null);
@@ -564,24 +565,37 @@ export default function WalletPage() {
   }, [loadWalletData]);
 
   useEffect(() => {
-    const savedMethod =
-      (localStorage.getItem("preferred_2fa_method") as SecurityMethod) || null;
-    setPreferredMethod(savedMethod);
+  const savedMethod =
+    (localStorage.getItem("preferred_2fa_method") as SecurityMethod) || null;
+  setPreferredMethod(savedMethod);
 
-    const savedPhone = localStorage.getItem("user_phone_number") || "";
-    if (savedPhone) {
-      setPhone(savedPhone);
+  const savedPhone = localStorage.getItem("user_phone_number") || "";
+  if (savedPhone) {
+    setPhone(savedPhone);
+  }
+
+  const loadUser = async () => {
+    const { data } = await supabase.auth.getUser();
+    if (data.user?.email) {
+      setEmail(data.user.email);
     }
+  };
 
-    const loadUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      if (data.user?.email) {
-        setEmail(data.user.email);
-      }
-    };
+  // ✅ LANGUAGE (OUTSIDE loadUser)
+  const savedLang = localStorage.getItem("app_lang");
+  if (savedLang) {
+    setLang(savedLang);
+  } else {
+    const browserLang = navigator.language.toLowerCase();
+    if (browserLang.includes("fil")) setLang("fil");
+    else if (browserLang.includes("ja")) setLang("ja");
+    else setLang("en");
+  }
 
-    void loadUser();
-  }, []);
+  // ✅ THEN CALL USER
+  void loadUser();
+
+}, []);
 
   const sendOtp = async () => {
     try {
