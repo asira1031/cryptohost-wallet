@@ -16,7 +16,7 @@ export default function BuyPage() {
     TRX: 0,
   });
 
-  const feePercent = 2.5;
+  const serviceFeePercent = 2.5;
 
   useEffect(() => {
     const fetchPrices = async () => {
@@ -53,10 +53,12 @@ export default function BuyPage() {
   }, []);
 
   const usdValue = Number(usdAmount) || 0;
-  const feeAmount = usdValue * (feePercent / 100);
-  const netUsd = Math.max(usdValue - feeAmount, 0);
+  const serviceFeeAmount = usdValue * (serviceFeePercent / 100);
+  const totalToPay = usdValue + serviceFeeAmount;
+  const netUsdForConversion = usdValue;
   const currentPrice = prices[asset] > 0 ? prices[asset] : 0;
-  const estimatedReceive = currentPrice > 0 ? netUsd / currentPrice : 0;
+  const estimatedReceive =
+    currentPrice > 0 ? netUsdForConversion / currentPrice : 0;
 
   const quickAmounts = [50, 100, 250, 500];
 
@@ -184,16 +186,31 @@ export default function BuyPage() {
               </div>
 
               <div className="mb-3 flex items-center justify-between">
-                <span className="text-sm text-white/65">Processing Fee</span>
+                <span className="text-sm text-white/65">Buy Amount</span>
                 <span className="text-sm font-semibold text-white">
-                  ${feeAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  ${usdValue.toLocaleString(undefined, {
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </div>
+
+              <div className="mb-3 flex items-center justify-between">
+                <span className="text-sm text-white/65">
+                  Service Fee ({serviceFeePercent}%)
+                </span>
+                <span className="text-sm font-semibold text-white">
+                  ${serviceFeeAmount.toLocaleString(undefined, {
+                    maximumFractionDigits: 2,
+                  })}
                 </span>
               </div>
 
               <div className="mb-4 flex items-center justify-between">
-                <span className="text-sm text-white/65">Net Amount</span>
+                <span className="text-sm text-white/65">Total To Pay</span>
                 <span className="text-sm font-semibold text-white">
-                  ${netUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  ${totalToPay.toLocaleString(undefined, {
+                    maximumFractionDigits: 2,
+                  })}
                 </span>
               </div>
 
@@ -215,8 +232,8 @@ export default function BuyPage() {
             </button>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs leading-5 text-white/55">
-              Preview only. Real provider routing, settlement, and pricing can be
-              connected in the next phase.
+              Preview only. Service fee is included in the total payment amount.
+              Provider routing and settlement can be connected in the next phase.
             </div>
           </div>
         </div>

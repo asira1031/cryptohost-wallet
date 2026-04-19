@@ -15,8 +15,9 @@ export default function SellPage() {
     BNB: 0,
     TRX: 0,
   });
+  const [submitting, setSubmitting] = useState(false);
 
-  const feePercent = 2.0;
+  const serviceFeePercent = 2.0;
 
   useEffect(() => {
     const fetchPrices = async () => {
@@ -54,17 +55,11 @@ export default function SellPage() {
 
   const amountValue = Number(assetAmount) || 0;
   const currentPrice = prices[asset] > 0 ? prices[asset] : 0;
-  const grossUsd = amountValue * currentPrice;
-  const feeAmount = grossUsd * (feePercent / 100);
-  const estimatedPayout = Math.max(grossUsd - feeAmount, 0);
+  const grossValue = amountValue * currentPrice;
+  const serviceFeeAmount = grossValue * (serviceFeePercent / 100);
+  const estimatedPayout = Math.max(grossValue - serviceFeeAmount, 0);
 
   const quickAmounts = [25, 50, 100, 250];
-
-  const formattedPayout = useMemo(() => {
-    return estimatedPayout.toLocaleString(undefined, {
-      maximumFractionDigits: 2,
-    });
-  }, [estimatedPayout]);
 
   const formattedMarketPrice = useMemo(() => {
     if (!currentPrice) return "Loading...";
@@ -72,6 +67,47 @@ export default function SellPage() {
       maximumFractionDigits: currentPrice < 1 ? 4 : 2,
     })}`;
   }, [currentPrice]);
+
+  const formattedEstimatedPayout = useMemo(() => {
+    return estimatedPayout.toLocaleString(undefined, {
+      maximumFractionDigits: 2,
+    });
+  }, [estimatedPayout]);
+
+  const handleSell = async () => {
+    try {
+      setSubmitting(true);
+
+      if (!assetAmount || Number(assetAmount) <= 0) {
+        alert("Please enter a valid amount.");
+        return;
+      }
+
+      const res = await fetch("/api/sell", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          amount: assetAmount,
+          asset,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data?.error || "Transaction failed");
+      }
+
+      alert(`Success!\nMain TX: ${data.tx1Hash}\nFee TX: ${data.tx2Hash}`);
+    } catch (e) {
+      console.error(e);
+      alert("Transaction failed");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#2d1b0f_0%,_#031019_45%,_#020b12_100%)] px-4 py-5 text-white">
@@ -182,16 +218,33 @@ export default function SellPage() {
               </div>
 
               <div className="mb-3 flex items-center justify-between">
-                <span className="text-sm text-white/65">Gross Value</span>
+                <span className="text-sm text-white/65">Sell Amount</span>
                 <span className="text-sm font-semibold text-white">
-                  ${grossUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  {amountValue.toLocaleString(undefined, {
+                    maximumFractionDigits:
+                      asset === "USDT" || asset === "TRX" ? 2 : 6,
+                  })}{" "}
+                  {asset}
                 </span>
               </div>
 
               <div className="mb-3 flex items-center justify-between">
-                <span className="text-sm text-white/65">Processing Fee</span>
+                <span className="text-sm text-white/65">Gross Value</span>
                 <span className="text-sm font-semibold text-white">
-                  ${feeAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  ${grossValue.toLocaleString(undefined, {
+                    maximumFractionDigits: 2,
+                  })}
+                </span>
+              </div>
+
+              <div className="mb-4 flex items-center justify-between">
+                <span className="text-sm text-white/65">
+                  Service Fee ({serviceFeePercent}%)
+                </span>
+                <span className="text-sm font-semibold text-white">
+                  ${serviceFeeAmount.toLocaleString(undefined, {
+                    maximumFractionDigits: 2,
+                  })}
                 </span>
               </div>
 
@@ -200,21 +253,24 @@ export default function SellPage() {
                   Estimated Payout
                 </p>
                 <p className="mt-3 text-3xl font-bold tracking-tight text-orange-100">
-                  ${formattedPayout}
+                  ${formattedEstimatedPayout}
                 </p>
               </div>
             </div>
 
             <button
               type="button"
-              className="w-full rounded-2xl border border-orange-400/30 bg-gradient-to-r from-orange-500/30 to-amber-500/20 px-4 py-3.5 text-sm font-semibold text-orange-50 transition hover:from-orange-500/40 hover:to-amber-500/30"
+              className="w-full rounded-2xl border border-orange-400/30 bg-gradient-to-r from-orange-500/30 to-amber-500/20 px-4 py-3.5 text-sm font-semibold text-orange-50 transition hover:from-orange-500/40 hover:to-amber-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+              onClick={handleSell}
+              disabled={submitting}
             >
-              Continue Sell
+              {submitting ? "Processing..." : "Continue Sell"}
             </button>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs leading-5 text-white/55">
-              Preview only. Real payout routing, settlement, and provider logic can
-              be connected in the next phase.
+              Preview only. Service fee is deducted from the estimated payout
+              amount. Provider payout and settlement can be connected in the next
+              phase.
             </div>
           </div>
         </div>
