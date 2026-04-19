@@ -1,25 +1,60 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type SellAsset = "ETH" | "USDT" | "BNB" | "TRX";
-
-const PRICE_MAP: Record<SellAsset, number> = {
-  ETH: 3200,
-  USDT: 1,
-  BNB: 600,
-  TRX: 0.12,
-};
 
 export default function SellPage() {
   const [asset, setAsset] = useState<SellAsset>("USDT");
   const [assetAmount, setAssetAmount] = useState("");
   const [payoutMethod, setPayoutMethod] = useState("Bank / Card");
+  const [prices, setPrices] = useState<Record<SellAsset, number>>({
+    ETH: 0,
+    USDT: 1,
+    BNB: 0,
+    TRX: 0,
+  });
+
   const feePercent = 2.0;
 
+  useEffect(() => {
+    const fetchPrices = async () => {
+      try {
+        const res = await fetch(
+          "https://api.coingecko.com/api/v3/simple/price?ids=ethereum,tether,binancecoin,tron&vs_currencies=usd",
+          { cache: "no-store" }
+        );
+
+        if (!res.ok) {
+          throw new Error("Failed to fetch live prices");
+        }
+
+        const data = await res.json();
+
+        setPrices({
+          ETH: Number(data?.ethereum?.usd ?? 0),
+          USDT: Number(data?.tether?.usd ?? 1),
+          BNB: Number(data?.binancecoin?.usd ?? 0),
+          TRX: Number(data?.tron?.usd ?? 0),
+        });
+      } catch (err) {
+        console.error("Failed to fetch prices:", err);
+      }
+    };
+
+    void fetchPrices();
+
+    const interval = setInterval(() => {
+      void fetchPrices();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   const amountValue = Number(assetAmount) || 0;
-  const grossUsd = amountValue * PRICE_MAP[asset];
+  const currentPrice = prices[asset] > 0 ? prices[asset] : 0;
+  const grossUsd = amountValue * currentPrice;
   const feeAmount = grossUsd * (feePercent / 100);
   const estimatedPayout = Math.max(grossUsd - feeAmount, 0);
 
@@ -31,38 +66,50 @@ export default function SellPage() {
     });
   }, [estimatedPayout]);
 
+  const formattedMarketPrice = useMemo(() => {
+    if (!currentPrice) return "Loading...";
+    return `$${currentPrice.toLocaleString(undefined, {
+      maximumFractionDigits: currentPrice < 1 ? 4 : 2,
+    })}`;
+  }, [currentPrice]);
+
   return (
-    <div className="min-h-screen bg-[#031019] px-4 py-5 text-white">
+    <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#2d1b0f_0%,_#031019_45%,_#020b12_100%)] px-4 py-5 text-white">
       <div className="mx-auto max-w-md">
-        <div className="mb-4 flex items-center justify-between">
+        <div className="mb-5 flex items-center justify-between">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.25em] text-orange-300/70">
+            <p className="text-[10px] uppercase tracking-[0.35em] text-orange-300/70">
               CryptoHost Wallet
             </p>
-            <h1 className="text-2xl font-bold">Sell Crypto</h1>
+            <h1 className="mt-1 text-3xl font-bold tracking-tight text-white">
+              Sell Crypto
+            </h1>
+            <p className="mt-1 text-sm text-white/55">
+              Premium sell preview for digital assets
+            </p>
           </div>
 
           <Link
             href="/dashboard/wallet"
-            className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-medium text-white/80"
+            className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-medium text-white/80 transition hover:bg-white/15"
           >
             Back
           </Link>
         </div>
 
-        <div className="overflow-hidden rounded-[28px] border border-orange-400/15 bg-[#071923]/95 shadow-[0_20px_60px_rgba(0,0,0,0.35)]">
-          <div className="border-b border-white/10 px-4 py-4">
-            <p className="text-[11px] uppercase tracking-[0.22em] text-orange-300/70">
+        <div className="overflow-hidden rounded-[30px] border border-orange-400/15 bg-[#071923]/90 shadow-[0_20px_80px_rgba(0,0,0,0.45)] backdrop-blur-xl">
+          <div className="border-b border-white/10 bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-transparent px-5 py-5">
+            <p className="text-[11px] uppercase tracking-[0.28em] text-orange-300/75">
               Sell Panel
             </p>
-            <p className="mt-1 text-sm text-white/70">
-              Review your estimated payout before continuing.
+            <p className="mt-2 text-sm leading-6 text-white/72">
+              Select the asset you want to sell and review your estimated payout.
             </p>
           </div>
 
           <div className="space-y-4 p-4">
-            <div className="rounded-3xl border border-white/10 bg-[#06131b] p-4">
-              <p className="mb-2 text-[11px] uppercase tracking-[0.22em] text-white/45">
+            <div className="rounded-[28px] border border-white/10 bg-[#06131b]/95 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+              <p className="mb-3 text-[11px] uppercase tracking-[0.28em] text-white/45">
                 Choose Asset
               </p>
 
@@ -74,8 +121,8 @@ export default function SellPage() {
                     onClick={() => setAsset(item)}
                     className={`rounded-2xl px-3 py-3 text-sm font-semibold transition ${
                       asset === item
-                        ? "border border-orange-400/30 bg-orange-500/20 text-orange-200"
-                        : "border border-white/10 bg-white/5 text-white/70"
+                        ? "border border-orange-400/30 bg-orange-500/20 text-orange-200 shadow-[0_0_20px_rgba(249,115,22,0.12)]"
+                        : "border border-white/10 bg-white/[0.04] text-white/75 hover:bg-white/[0.07]"
                     }`}
                   >
                     {item}
@@ -84,8 +131,8 @@ export default function SellPage() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-[#06131b] p-4">
-              <label className="mb-2 block text-[11px] uppercase tracking-[0.22em] text-white/45">
+            <div className="rounded-[28px] border border-white/10 bg-[#06131b]/95 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+              <label className="mb-3 block text-[11px] uppercase tracking-[0.28em] text-white/45">
                 Payout Method
               </label>
 
@@ -100,8 +147,8 @@ export default function SellPage() {
               </select>
             </div>
 
-            <div className="rounded-3xl border border-white/10 bg-[#06131b] p-4">
-              <label className="mb-2 block text-[11px] uppercase tracking-[0.22em] text-white/45">
+            <div className="rounded-[28px] border border-white/10 bg-[#06131b]/95 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+              <label className="mb-3 block text-[11px] uppercase tracking-[0.28em] text-white/45">
                 Enter {asset} Amount
               </label>
 
@@ -118,7 +165,7 @@ export default function SellPage() {
                     key={amount}
                     type="button"
                     onClick={() => setAssetAmount(String(amount))}
-                    className="rounded-2xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/75"
+                    className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-white/80 transition hover:bg-white/[0.08]"
                   >
                     {amount}
                   </button>
@@ -126,11 +173,11 @@ export default function SellPage() {
               </div>
             </div>
 
-            <div className="rounded-3xl border border-orange-400/15 bg-gradient-to-br from-orange-500/10 to-amber-500/10 p-4">
+            <div className="rounded-[28px] border border-orange-400/15 bg-gradient-to-br from-orange-500/12 via-amber-500/8 to-[#06131b] p-4 shadow-[0_0_30px_rgba(249,115,22,0.08)]">
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-sm text-white/65">Market Price</span>
                 <span className="text-sm font-semibold text-white">
-                  ${PRICE_MAP[asset].toLocaleString()}
+                  {formattedMarketPrice}
                 </span>
               </div>
 
@@ -148,11 +195,11 @@ export default function SellPage() {
                 </span>
               </div>
 
-              <div className="rounded-2xl border border-orange-400/20 bg-orange-500/10 px-4 py-4">
-                <p className="text-[11px] uppercase tracking-[0.22em] text-orange-200/70">
+              <div className="rounded-[24px] border border-orange-400/20 bg-orange-500/10 px-4 py-5">
+                <p className="text-[11px] uppercase tracking-[0.28em] text-orange-200/75">
                   Estimated Payout
                 </p>
-                <p className="mt-2 text-2xl font-bold text-orange-100">
+                <p className="mt-3 text-3xl font-bold tracking-tight text-orange-100">
                   ${formattedPayout}
                 </p>
               </div>
@@ -160,13 +207,14 @@ export default function SellPage() {
 
             <button
               type="button"
-              className="w-full rounded-2xl border border-orange-400/25 bg-orange-500/20 px-4 py-3 text-sm font-semibold text-orange-100 transition hover:bg-orange-500/30"
+              className="w-full rounded-2xl border border-orange-400/30 bg-gradient-to-r from-orange-500/30 to-amber-500/20 px-4 py-3.5 text-sm font-semibold text-orange-50 transition hover:from-orange-500/40 hover:to-amber-500/30"
             >
               Continue Sell
             </button>
 
-            <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-xs text-white/55">
-              Preview only. Real settlement or payout logic can be connected later.
+            <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs leading-5 text-white/55">
+              Preview only. Real payout routing, settlement, and provider logic can
+              be connected in the next phase.
             </div>
           </div>
         </div>
