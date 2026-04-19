@@ -1,5 +1,5 @@
 "use client";
-
+import PerpsPanel from "./components/PerpsPanel";
 import TronWalletCard from "./components/TronWalletCard";
 import { getProvider } from "@/app/lib/wallet-provider";
 import { QRCodeSVG } from "qrcode.react";
@@ -356,6 +356,7 @@ function copyToClipboard(value: string) {
 export default function WalletPage() {
   const [lang, setLang] = useState("en");
   const [activeTab, setActiveTab] = useState<TabKey>("send");
+  const [marketTab, setMarketTab] = useState<"tokens" | "perps" | "stocks">("tokens");
   const [selectedAsset, setSelectedAsset] = useState<SendAsset>("ETH");
   const [preferredMethod, setPreferredMethod] = useState<SecurityMethod>(null);
 
@@ -1202,31 +1203,47 @@ export default function WalletPage() {
         ref={sendSectionRef}
         className="mt-4 rounded-[24px] border border-white/8 bg-[#0a1821] p-3"
       >
-        <div className="mb-3 flex gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab("send")}
-            className={`rounded-full px-4 py-2 text-xs font-medium ${
-              activeTab === "send"
-                ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
-                : "border border-white/10 bg-white/10 text-white/75"
-            }`}
-          >
-            Send
-          </button>
+       <div className="mb-3 flex flex-wrap gap-2">
+  <button
+    type="button"
+    onClick={() => setActiveTab("send")}
+    className={`rounded-full px-4 py-2 text-xs font-medium ${
+      activeTab === "send"
+        ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
+        : "border border-white/10 bg-white/10 text-white/75"
+    }`}
+  >
+    Send
+  </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab("receive")}
-            className={`rounded-full px-4 py-2 text-xs font-medium ${
-              activeTab === "receive"
-                ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
-                : "border border-white/10 bg-white/10 text-white/75"
-            }`}
-          >
-            Receive
-          </button>
-        </div>
+  <button
+    type="button"
+    onClick={() => setActiveTab("receive")}
+    className={`rounded-full px-4 py-2 text-xs font-medium ${
+      activeTab === "receive"
+        ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
+        : "border border-white/10 bg-white/10 text-white/75"
+    }`}
+  >
+    Receive
+  </button>
+
+  <button
+    type="button"
+    onClick={() => window.open("https://www.binance.com/en/buy-sell-crypto", "_blank", "noopener,noreferrer")}
+    className="rounded-full border border-emerald-400/25 bg-emerald-500/15 px-4 py-2 text-xs font-medium text-emerald-200 transition hover:bg-emerald-500/25"
+  >
+    Buy
+  </button>
+
+  <button
+    type="button"
+    onClick={() => window.open("https://www.binance.com/en/trade", "_blank", "noopener,noreferrer")}
+    className="rounded-full border border-orange-400/25 bg-orange-500/15 px-4 py-2 text-xs font-medium text-orange-200 transition hover:bg-orange-500/25"
+  >
+          Sell
+     </button>
+           </div>
 
         {activeTab === "send" ? (
           <div className="space-y-3">
@@ -1486,10 +1503,10 @@ export default function WalletPage() {
         )}
       </div>
 
-      <div className="mt-4 grid grid-cols-4 gap-2 rounded-full border border-white/8 bg-white/6 p-1.5 text-center">
+      <div className="mt-4 grid grid-cols-5 gap-1 rounded-full border border-white/10 bg-white/10 p-1.5 text-center">
         <Link
           href="/dashboard"
-          className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70"
+          className="rounded-full px-1.5 py-2 text-[10px] font-medium text-white/70"
         >
           Home
         </Link>
@@ -1514,6 +1531,88 @@ export default function WalletPage() {
         >
           Wallet
         </Link>
+       <Link
+        href="/dashboard/social-ai"
+        className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70"
+>
+        Social AI
+      </Link>
+      </div>
+
+          <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          onClick={() => setMarketTab("tokens")}
+          className={`rounded-full px-4 py-2 text-xs font-medium ${
+            marketTab === "tokens"
+              ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
+              : "border border-white/10 bg-white/10 text-white/75"
+          }`}
+        >
+          Tokens
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMarketTab("perps")}
+          className={`rounded-full px-4 py-2 text-xs font-medium ${
+            marketTab === "perps"
+              ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
+              : "border border-white/10 bg-white/10 text-white/75"
+          }`}
+        >
+          Perps
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMarketTab("stocks")}
+          className={`rounded-full px-4 py-2 text-xs font-medium ${
+            marketTab === "stocks"
+              ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
+              : "border border-white/10 bg-white/10 text-white/75"
+          }`}
+        >
+          Stocks
+        </button>
+      </div>
+
+            <div className="mt-3 flex gap-2">
+        <button
+          type="button"
+          onClick={() => setMarketTab("tokens")}
+          className={`rounded-full px-4 py-2 text-xs font-medium ${
+            marketTab === "tokens"
+              ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
+              : "border border-white/10 bg-white/10 text-white/75"
+          }`}
+        >
+          Tokens
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMarketTab("perps")}
+          className={`rounded-full px-4 py-2 text-xs font-medium ${
+            marketTab === "perps"
+              ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
+              : "border border-white/10 bg-white/10 text-white/75"
+          }`}
+        >
+          Perps
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setMarketTab("stocks")}
+          className={`rounded-full px-4 py-2 text-xs font-medium ${
+            marketTab === "stocks"
+              ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
+              : "border border-white/10 bg-white/10 text-white/75"
+          }`}
+        >
+          Stocks
+        </button>
       </div>
 
       <div className="mt-6">
@@ -1555,6 +1654,18 @@ export default function WalletPage() {
               Cancel
             </button>
           </div>
+        </div>
+      )}
+
+      {marketTab === "perps" && (
+        <div className="mt-4 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-4 text-white">
+          PERPS PANEL IS WORKING
+        </div>
+      )}
+
+      {marketTab === "stocks" && (
+        <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-white/70">
+          Stock market panel is being prepared.
         </div>
       )}
 
