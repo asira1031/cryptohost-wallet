@@ -1,10 +1,12 @@
 "use client";
+
 import PerpsPanel from "./components/PerpsPanel";
 import TronWalletCard from "./components/TronWalletCard";
 import { getProvider } from "@/app/lib/wallet-provider";
 import { QRCodeSVG } from "qrcode.react";
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { ethers } from "ethers";
 import { FEE_PERCENT, FEE_WALLET } from "../../lib/wallet-config";
 import {
@@ -354,6 +356,7 @@ function copyToClipboard(value: string) {
 }
 
 export default function WalletPage() {
+ const router = useRouter();
   const [lang, setLang] = useState("en");
   const [activeTab, setActiveTab] = useState<TabKey>("send");
   const [marketTab, setMarketTab] = useState<"tokens" | "perps" | "stocks">("tokens");
@@ -1229,20 +1232,20 @@ export default function WalletPage() {
   </button>
 
   <button
-    type="button"
-    onClick={() => window.open("https://www.binance.com/en/buy-sell-crypto", "_blank", "noopener,noreferrer")}
-    className="rounded-full border border-emerald-400/25 bg-emerald-500/15 px-4 py-2 text-xs font-medium text-emerald-200 transition hover:bg-emerald-500/25"
-  >
-    Buy
-  </button>
+  type="button"
+  onClick={() => router.push("/dashboard/buy")}
+  className="rounded-full border border-emerald-400/25 bg-emerald-500/15 px-4 py-2 text-xs font-medium text-emerald-200"
+>
+  Buy
+</button>
 
-  <button
-    type="button"
-    onClick={() => window.open("https://www.binance.com/en/trade", "_blank", "noopener,noreferrer")}
-    className="rounded-full border border-orange-400/25 bg-orange-500/15 px-4 py-2 text-xs font-medium text-orange-200 transition hover:bg-orange-500/25"
-  >
-          Sell
-     </button>
+<button
+  type="button"
+  onClick={() => router.push("/dashboard/sell")}
+  className="rounded-full border border-orange-400/25 bg-orange-500/15 px-4 py-2 text-xs font-medium text-orange-200"
+>
+  Sell
+</button>
            </div>
 
         {activeTab === "send" ? (
