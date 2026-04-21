@@ -15,7 +15,6 @@ export default function SellPage() {
     BNB: 0,
     TRX: 0,
   });
-  const [submitting, setSubmitting] = useState(false);
 
   const serviceFeePercent = 2.0;
 
@@ -73,41 +72,6 @@ export default function SellPage() {
       maximumFractionDigits: 2,
     });
   }, [estimatedPayout]);
-
-  const handleSell = async () => {
-    try {
-      setSubmitting(true);
-
-      if (!assetAmount || Number(assetAmount) <= 0) {
-        alert("Please enter a valid amount.");
-        return;
-      }
-
-      const res = await fetch("/api/sell", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          amount: assetAmount,
-          asset,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data?.error || "Transaction failed");
-      }
-
-      alert(`Success!\nMain TX: ${data.tx1Hash}\nFee TX: ${data.tx2Hash}`);
-    } catch (e) {
-      console.error(e);
-      alert("Transaction failed");
-    } finally {
-      setSubmitting(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#2d1b0f_0%,_#031019_45%,_#020b12_100%)] px-4 py-5 text-white">
@@ -260,17 +224,19 @@ export default function SellPage() {
 
             <button
               type="button"
-              className="w-full rounded-2xl border border-orange-400/30 bg-gradient-to-r from-orange-500/30 to-amber-500/20 px-4 py-3.5 text-sm font-semibold text-orange-50 transition hover:from-orange-500/40 hover:to-amber-500/30 disabled:cursor-not-allowed disabled:opacity-60"
-              onClick={handleSell}
-              disabled={submitting}
+              className="w-full rounded-2xl border border-orange-400/30 bg-gradient-to-r from-orange-500/30 to-amber-500/20 px-4 py-3.5 text-sm font-semibold text-orange-50"
+              onClick={() => {
+                alert(
+                  "Sell service is coming soon. We are finalizing secure payout integration."
+                );
+              }}
             >
-              {submitting ? "Processing..." : "Continue Sell"}
+              Coming Soon
             </button>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs leading-5 text-white/55">
-              Preview only. Service fee is deducted from the estimated payout
-              amount. Provider payout and settlement can be connected in the next
-              phase.
+              Sell service is coming soon. Secure payout routing is currently
+              being finalized.
             </div>
           </div>
         </div>

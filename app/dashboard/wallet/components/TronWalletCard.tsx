@@ -22,25 +22,18 @@ export default function TronWalletCard() {
     try {
       setLoading(true);
       setError("");
+      setSuccess("");
 
-      const res = await fetch("/api/tron/balance", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ address }),
-      });
+      // Safe mode for static export:
+      // disable backend fetch temporarily to avoid HTML/JSON parse errors
+      setTrxBalance(0);
+      setUsdtBalance(0);
 
-      const data = await res.json();
-
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to load TRON balance");
+      if (address) {
+        setSuccess("TRON wallet loaded. Balance view is coming soon.");
       }
-
-      setTrxBalance(data.trx ?? 0);
-      setUsdtBalance(data.usdt?.formatted ?? 0);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Error loading balance");
+    } catch {
+      setError("TRON balance fetch is temporarily unavailable.");
     } finally {
       setLoading(false);
     }
@@ -109,7 +102,7 @@ export default function TronWalletCard() {
 
     if (existing) {
       setWallet(existing);
-      loadBalances(existing.address);
+      void loadBalances(existing.address);
     }
   }, []);
 
@@ -170,9 +163,34 @@ export default function TronWalletCard() {
             </button>
           </div>
 
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-2xl border border-white/10 bg-[#06131b] p-3">
+              <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">
+                TRX Balance
+              </p>
+              <p className="mt-2 text-lg font-semibold text-white">
+                {trxBalance !== null ? trxBalance : "--"}
+              </p>
+            </div>
+
+            <div className="rounded-2xl border border-white/10 bg-[#06131b] p-3">
+              <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">
+                USDT (TRC20)
+              </p>
+              <p className="mt-2 text-lg font-semibold text-white">
+                {usdtBalance !== null ? usdtBalance : "--"}
+              </p>
+            </div>
+          </div>
+
           <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-3 text-xs text-yellow-100">
             Local test mode only. This TRON wallet is stored in your browser for
             now. Do not remove it unless you already backed up the private key.
+          </div>
+
+          <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3 text-xs text-cyan-100">
+            TRON balance loading is currently in safe mode while live TRON
+            network integration is being finalized.
           </div>
         </div>
       ) : (

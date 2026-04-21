@@ -226,14 +226,19 @@ export default function BuyPage() {
 
             <button
               type="button"
-              className="w-full rounded-2xl border border-emerald-400/30 bg-gradient-to-r from-emerald-500/30 to-cyan-500/20 px-4 py-3.5 text-sm font-semibold text-emerald-50 transition hover:from-emerald-500/40 hover:to-cyan-500/30"
+              className="w-full rounded-2xl border border-emerald-400/30 bg-gradient-to-r from-emerald-500/30 to-cyan-500/20 px-4 py-3.5 text-sm font-semibold text-emerald-50"
+              onClick={() => {
+                alert(
+                  "Buy service is coming soon. Payment provider integration is being finalized."
+                );
+              }}
             >
-              Continue Buy
+              Coming Soon
             </button>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs leading-5 text-white/55">
-              Preview only. Service fee is included in the total payment amount.
-              Provider routing and settlement can be connected in the next phase.
+              Buy service is coming soon. Payment provider integration is currently
+              in progress.
             </div>
           </div>
         </div>
