@@ -1,16 +1,16 @@
 import type { NextConfig } from "next";
 import path from "path";
 
-const isDev = process.env.NODE_ENV === "development";
+const isAndroidExport = process.env.BUILD_TARGET === "android";
 
 const nextConfig: NextConfig = {
-  ...(isDev
-    ? {}
-    : {
+  ...(isAndroidExport
+    ? {
         output: "export",
         assetPrefix: "./",
         trailingSlash: true,
-      }),
+      }
+    : {}),
 
   turbopack: {
     root: path.join(__dirname),
