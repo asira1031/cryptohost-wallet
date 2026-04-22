@@ -1,22 +1,24 @@
 import type { NextConfig } from "next";
 import path from "path";
 
-const nextConfig: NextConfig = {
-  // ✅ Required for Capacitor (static export)
-  output: "export",
+const isDev = process.env.NODE_ENV === "development";
 
-  // ✅ Keep your existing turbopack config (hindi natin gagalawin)
+const nextConfig: NextConfig = {
+  ...(isDev
+    ? {}
+    : {
+        output: "export",
+        assetPrefix: "./",
+        trailingSlash: true,
+      }),
+
   turbopack: {
     root: path.join(__dirname),
   },
 
-  // ✅ Optional but recommended for mobile apps (no image optimization issue)
   images: {
     unoptimized: true,
   },
-
-  // ✅ Ensures proper trailing paths for static files
-  trailingSlash: true,
 };
 
 export default nextConfig;

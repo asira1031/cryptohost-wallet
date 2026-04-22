@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { supabase } from "../lib/supabase/client";
 import { useRouter } from "next/navigation";
@@ -15,52 +16,44 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
-    try {
-      setLoading(true);
-      setMessage("");
+    setLoading(true);
+    setMessage("");
 
-      const { error } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
-        password,
-      });
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    });
 
-      if (error) {
-        setMessage("Invalid login credentials");
-        return;
-      }
-
-      let is2FA = "false";
-      if (typeof window !== "undefined") {
-        is2FA = window.localStorage.getItem("2fa_enabled") || "false";
-      }
+    if (error) {
+      setMessage("Invalid login credentials");
+    } else {
+      const is2FA = localStorage.getItem("2fa_enabled");
 
       if (is2FA === "true") {
         router.push("/verify-2fa");
       } else {
         router.push("/dashboard/security");
       }
-    } catch (err) {
-      console.error("Login error:", err);
-      setMessage("Something went wrong. Please try again.");
-    } finally {
-      setLoading(false);
     }
+
+    setLoading(false);
   }
 
   return (
     <main style={pageStyle}>
       {!showLogin ? (
         <button
-          type="button"
           onClick={() => setShowLogin(true)}
           style={logoButtonStyle}
           aria-label="Open login"
         >
           <div style={logoWrapStyle}>
-            <img
+            <Image
               src="/cryptohost-logo.jpeg"
               alt="CryptoHost Logo"
-              style={logoImageStyle}
+              fill
+              style={{ objectFit: "contain" }}
+              priority
             />
           </div>
           <p style={logoTextStyle}>CryptoHost Wallet</p>
@@ -68,11 +61,7 @@ export default function LoginPage() {
         </button>
       ) : (
         <div style={cardStyle}>
-          <button
-            type="button"
-            onClick={() => setShowLogin(false)}
-            style={backButtonStyle}
-          >
+          <button onClick={() => setShowLogin(false)} style={backButtonStyle}>
             ← Back
           </button>
 
@@ -80,8 +69,6 @@ export default function LoginPage() {
           <p style={subStyle}>Access your secure wallet dashboard.</p>
 
           <input
-            type="email"
-            autoComplete="email"
             style={inputStyle}
             placeholder="Email"
             value={email}
@@ -90,19 +77,13 @@ export default function LoginPage() {
 
           <input
             type="password"
-            autoComplete="current-password"
             style={inputStyle}
             placeholder="Password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
           />
 
-          <button
-            type="button"
-            style={buttonStyle}
-            onClick={handleLogin}
-            disabled={loading}
-          >
+          <button style={buttonStyle} onClick={handleLogin} disabled={loading}>
             {loading ? "Logging in..." : "Login"}
           </button>
 
@@ -151,13 +132,6 @@ const logoWrapStyle: React.CSSProperties = {
   background: "rgba(255,255,255,0.04)",
   border: "1px solid rgba(255,255,255,0.08)",
   boxShadow: "0 18px 40px rgba(0,0,0,0.28)",
-};
-
-const logoImageStyle: React.CSSProperties = {
-  width: "100%",
-  height: "100%",
-  objectFit: "contain",
-  display: "block",
 };
 
 const logoTextStyle: React.CSSProperties = {
@@ -212,7 +186,6 @@ const inputStyle: React.CSSProperties = {
   background: "#0b1220",
   color: "#fff",
   marginBottom: 14,
-  outline: "none",
 };
 
 const buttonStyle: React.CSSProperties = {

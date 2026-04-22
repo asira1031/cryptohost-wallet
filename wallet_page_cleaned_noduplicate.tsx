@@ -1,19 +1,15 @@
 "use client";
-
-import TronWalletCard from "./components/TronWalletCard";
+import TronWalletCard from "@/app/dashboard/wallet/components/TronWalletCard";
 import { getProvider } from "@/app/lib/wallet-provider";
 import { QRCodeSVG } from "qrcode.react";
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ethers } from "ethers";
 import { FEE_PERCENT, FEE_WALLET } from "@/app/lib/wallet-config";
 import { provider } from "@/app/lib/wallet-provider";
 import { supabase } from "@/app/lib/supabase/client";
-import {
-  hasEncryptedWallet,
-  getEncryptedWalletAddress,
-} from "@/app/lib/wallet-security";
+
 
 type MarketTickerProps = {
   label: string;
@@ -52,7 +48,7 @@ function getSupportReply(message: string) {
     text.includes("how to send") ||
     text.includes("how to transfer")
   ) {
-    return "To transfer crypto, choose the asset, enter the recipient wallet address, input the amount, verify OTP or security approval, then confirm the send transaction.";
+    return "To transfer crypto, unlock your wallet, choose the asset, enter the recipient wallet address, input the amount, verify OTP or security approval, then confirm the send transaction.";
   }
 
   if (
@@ -68,7 +64,7 @@ function getSupportReply(message: string) {
     text.includes("setup wallet") ||
     text.includes("create wallet")
   ) {
-    return "For wallet setup, open your Security page to manage your wallet details, then return to the wallet dashboard to send, receive, and monitor balances.";
+    return "For wallet setup, create or unlock your wallet using your password, then save your private key and recovery phrase in a safe offline place before using the wallet.";
   }
 
   if (
@@ -84,7 +80,7 @@ function getSupportReply(message: string) {
     text.includes("password") ||
     text.includes("recover wallet")
   ) {
-    return "If you forgot your wallet password, use your saved recovery phrase or private key from the Security page to restore access. Without backup credentials, wallet recovery may not be possible.";
+    return "If you forgot your wallet password, use your saved recovery phrase or private key to restore access. Without backup credentials, wallet recovery may not be possible.";
   }
 
   if (
@@ -103,7 +99,10 @@ function getSupportReply(message: string) {
     return "To receive crypto, open the Receive tab, copy your wallet address or QR code, and make sure the sender is using the correct network before sending funds.";
   }
 
-  if (text.includes("swap") || text.includes("convert")) {
+  if (
+    text.includes("swap") ||
+    text.includes("convert")
+  ) {
     return "You can use the Swap section of CryptoHost Wallet to convert supported assets. Always review network fees and final amounts before confirming.";
   }
 
@@ -347,33 +346,37 @@ function copyToClipboard(value: string) {
   }
 }
 
-function readLocalWalletAddress() {
+
+const FIXED_WALLET_ADDRESS_KEYS = [
+  "cryptohost_fixed_wallet_address",
+  "fixed_wallet_address",
+  "wallet_address",
+  "cryptohost_wallet_address",
+];
+
+const FIXED_WALLET_PRIVATE_KEY_KEYS = [
+  "cryptohost_fixed_wallet_private_key",
+  "fixed_wallet_private_key",
+  "wallet_private_key",
+  "cryptohost_wallet_private_key",
+];
+
+function readStoredWalletValue(keys: string[]) {
   if (typeof window === "undefined") return "";
 
-  return (
-    localStorage.getItem("cryptohost_wallet_address") ||
-    localStorage.getItem("wallet_address") ||
-    ""
-  ).trim();
-}
+  for (const key of keys) {
+    const value = localStorage.getItem(key)?.trim();
+    if (value) return value;
+  }
 
-function readLocalPrivateKey() {
-  if (typeof window === "undefined") return "";
-
-  return (
-    localStorage.getItem("cryptohost_wallet_private_key") ||
-    localStorage.getItem("wallet_private_key") ||
-    ""
-  ).trim();
+  return "";
 }
 
 export default function WalletPage() {
-  const router = useRouter();
+ const router = useRouter();
   const [lang, setLang] = useState("en");
   const [activeTab, setActiveTab] = useState<TabKey>("send");
-  const [marketTab, setMarketTab] = useState<"tokens" | "perps" | "stocks">(
-    "tokens"
-  );
+  const [marketTab, setMarketTab] = useState<"tokens" | "perps" | "stocks">("tokens");
   const [selectedAsset, setSelectedAsset] = useState<SendAsset>("ETH");
   const [preferredMethod, setPreferredMethod] = useState<SecurityMethod>(null);
 
@@ -396,10 +399,12 @@ export default function WalletPage() {
     binancecoin?: number;
   }>({});
 
+
   const [recipient, setRecipient] = useState("");
   const [sendAmount, setSendAmount] = useState("");
   const [loadingBalances, setLoadingBalances] = useState(true);
   const [sending, setSending] = useState(false);
+
 
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
@@ -433,12 +438,14 @@ export default function WalletPage() {
   const ethAmount = safeNum(ethBalance);
   const usdtErc20Amount = safeNum(usdtBalance);
 
+  // temporary safe fallback muna
   const trxAmount = 0;
   const bnbAmount = 0;
   const usdtTronAmount = 0;
 
   const combinedUsdtAmount = usdtErc20Amount + usdtTronAmount;
 
+  // temporary safe fallback prices muna
   const ethUsdPrice = safeNum(marketPrices?.eth ?? marketPrices?.ethereum);
   const usdtUsdPrice = safeNum(marketPrices?.usdt ?? 1);
   const trxUsdPrice = safeNum(marketPrices?.trx ?? marketPrices?.tron);
@@ -450,22 +457,31 @@ export default function WalletPage() {
     trxAmount * trxUsdPrice +
     bnbAmount * bnbUsdPrice;
 
+  const loadFixedWalletCredentials = useCallback(() => {
+    const storedAddress = readStoredWalletValue(FIXED_WALLET_ADDRESS_KEYS);
+    const storedPrivateKey = readStoredWalletValue(FIXED_WALLET_PRIVATE_KEY_KEYS);
+
+    if (storedAddress) {
+      setWalletAddress(storedAddress);
+    }
+
+    if (storedPrivateKey) {
+      setPrivateKey(storedPrivateKey);
+    }
+
+    return {
+      address: storedAddress,
+      privateKey: storedPrivateKey,
+    };
+  }, []);
+
   const loadWalletData = useCallback(async (addressOverride?: string) => {
     setLoadingBalances(true);
     setError("");
 
     try {
-      const encryptedAddress = hasEncryptedWallet()
-        ? getEncryptedWalletAddress()
-        : "";
-
-      const localAddress = readLocalWalletAddress();
-      const address = (addressOverride || encryptedAddress || localAddress || "").trim();
-
-      const localPk = readLocalPrivateKey();
-      if (localPk) {
-        setPrivateKey(localPk);
-      }
+      const fixedWallet = loadFixedWalletCredentials();
+      const address = addressOverride || fixedWallet.address || "";
 
       if (!address) {
         setWalletAddress("");
@@ -498,41 +514,45 @@ export default function WalletPage() {
     } finally {
       setLoadingBalances(false);
     }
-  }, []);
+  }, [loadFixedWalletCredentials]);
 
   useEffect(() => {
+    loadFixedWalletCredentials();
     void loadWalletData();
-  }, [loadWalletData]);
+  }, [loadFixedWalletCredentials, loadWalletData]);
 
   useEffect(() => {
-    const savedMethod =
-      (localStorage.getItem("preferred_2fa_method") as SecurityMethod) || null;
-    setPreferredMethod(savedMethod);
+  const savedMethod =
+    (localStorage.getItem("preferred_2fa_method") as SecurityMethod) || null;
+  setPreferredMethod(savedMethod);
 
-    const savedPhone = localStorage.getItem("user_phone_number") || "";
-    if (savedPhone) {
-      setPhone(savedPhone);
+  const savedPhone = localStorage.getItem("user_phone_number") || "";
+  if (savedPhone) {
+    setPhone(savedPhone);
+  }
+
+  const loadUser = async () => {
+    const { data } = await supabase.auth.getUser();
+    if (data.user?.email) {
+      setEmail(data.user.email);
     }
+  };
 
-    const loadUser = async () => {
-      const { data } = await supabase.auth.getUser();
-      if (data.user?.email) {
-        setEmail(data.user.email);
-      }
-    };
+  // ✅ LANGUAGE (OUTSIDE loadUser)
+  const savedLang = localStorage.getItem("app_lang");
+  if (savedLang) {
+    setLang(savedLang);
+  } else {
+    const browserLang = navigator.language.toLowerCase();
+    if (browserLang.includes("fil")) setLang("fil");
+    else if (browserLang.includes("ja")) setLang("ja");
+    else setLang("en");
+  }
 
-    const savedLang = localStorage.getItem("app_lang");
-    if (savedLang) {
-      setLang(savedLang);
-    } else {
-      const browserLang = navigator.language.toLowerCase();
-      if (browserLang.includes("fil")) setLang("fil");
-      else if (browserLang.includes("ja")) setLang("ja");
-      else setLang("en");
-    }
+  // ✅ THEN CALL USER
+  void loadUser();
 
-    void loadUser();
-  }, []);
+}, []);
 
   const sendOtp = async () => {
     try {
@@ -686,305 +706,308 @@ export default function WalletPage() {
   };
 
   const handleSendAsset = async () => {
-    setError("");
-    setSuccess("");
-    setLastTxHash("");
+  setError("");
+  setSuccess("");
+  setLastTxHash("");
 
-    try {
-      if (!privateKey) {
-        setError("No wallet signing key found.");
+  try {
+    if (!privateKey) {
+      setError("No wallet signing key found. Please make sure the fixed wallet is already stored for this user.");
+      return;
+    }
+
+    if (!walletAddress) {
+      setError("No wallet loaded.");
+      return;
+    }
+
+    if (!otpVerified) {
+      setError("Verify OTP first.");
+      return;
+    }
+
+    if (!recipient.trim()) {
+      setError("Please enter recipient address.");
+      return;
+    }
+
+    const isTronAsset =
+      selectedAsset === "TRX" || selectedAsset === "USDT_TRC20";
+
+    if (!isTronAsset && !ethers.isAddress(recipient.trim())) {
+      setError("Recipient address is invalid.");
+      return;
+    }
+
+    if (!sendAmount.trim() || Number(sendAmount) <= 0) {
+      setError(`Please enter a valid ${selectedAsset} amount.`);
+      return;
+    }
+
+    const numericAmount = Number(sendAmount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
+      setError(`Invalid ${selectedAsset} amount.`);
+      return;
+    }
+
+    let cleanedKey = privateKey.trim();
+    if (!cleanedKey.startsWith("0x")) {
+      cleanedKey = `0x${cleanedKey}`;
+    }
+
+    setSending(true);
+
+    if (isTronAsset) {
+      setError("TRON assets use the TRON wallet flow, not the ETH/BNB provider.");
+      return;
+    }
+
+    const activeProvider = getProvider(selectedAsset as "ETH" | "USDT" | "BNB");
+
+    if (!activeProvider) {
+      setError("No provider available for selected asset.");
+      return;
+    }
+
+    const signer = new ethers.Wallet(cleanedKey, activeProvider);
+    const fromAddress = signer.address;
+
+    const network = await activeProvider.getNetwork();
+    const chainId = Number(network.chainId);
+
+    if (selectedAsset === "BNB" && chainId !== 56) {
+      setError("BNB sending requires a BNB Chain RPC/provider.");
+      return;
+    }
+
+    if (selectedAsset === "USDT") {
+      if (chainId !== 1) {
+        setError("This USDT contract is configured for Ethereum Mainnet only.");
         return;
       }
 
-      if (!walletAddress) {
-        setError("No wallet loaded.");
+      const usdtContract = new ethers.Contract(
+        USDT_CONTRACT,
+        erc20WriteAbi,
+        signer
+      );
+
+      const decimals: number = await usdtContract.decimals();
+      const totalUnits = ethers.parseUnits(sendAmount, decimals);
+
+      const rawFeeAmount = (numericAmount * FEE_PERCENT) / 100;
+      const feeAmount = rawFeeAmount > 0 ? rawFeeAmount : 0;
+      const payoutAmount = numericAmount - feeAmount;
+
+      if (payoutAmount <= 0) {
+        setError("Amount is too small after fee deduction.");
         return;
       }
 
-      if (!otpVerified) {
-        setError("Verify OTP first.");
+      const feeUnits =
+        feeAmount > 0 ? ethers.parseUnits(feeAmount.toFixed(decimals), decimals) : 0n;
+      const payoutUnits = ethers.parseUnits(
+        payoutAmount.toFixed(decimals),
+        decimals
+      );
+
+      const tokenBalance = await usdtContract.balanceOf(fromAddress);
+      if (tokenBalance < totalUnits) {
+        setError("Insufficient USDT balance.");
         return;
       }
 
-      if (!recipient.trim()) {
-        setError("Please enter recipient address.");
+      const gasBalance = await activeProvider.getBalance(fromAddress);
+      const feeData = await activeProvider.getFeeData();
+
+      const gasPriceForCheck =
+        feeData.maxFeePerGas ??
+        feeData.gasPrice ??
+        ethers.parseUnits("10", "gwei");
+
+      const estimatedGasPerTx = 80000n;
+      const txCount = feeUnits > 0n ? 2n : 1n;
+      const gasBufferWei = gasPriceForCheck * estimatedGasPerTx * txCount;
+
+      if (gasBalance < gasBufferWei) {
+        setError("Insufficient ETH balance for USDT network gas.");
         return;
       }
 
-      const isTronAsset =
-        selectedAsset === "TRX" || selectedAsset === "USDT_TRC20";
+      let feeTxHash = "";
 
-      if (!isTronAsset && !ethers.isAddress(recipient.trim())) {
-        setError("Recipient address is invalid.");
-        return;
-      }
-
-      if (!sendAmount.trim() || Number(sendAmount) <= 0) {
-        setError(`Please enter a valid ${selectedAsset} amount.`);
-        return;
-      }
-
-      const numericAmount = Number(sendAmount);
-      if (!Number.isFinite(numericAmount) || numericAmount <= 0) {
-        setError(`Invalid ${selectedAsset} amount.`);
-        return;
-      }
-
-      let cleanedKey = privateKey.trim();
-      if (!cleanedKey.startsWith("0x")) {
-        cleanedKey = `0x${cleanedKey}`;
-      }
-
-      setSending(true);
-
-      if (isTronAsset) {
-        setError("TRON assets use the TRON wallet flow, not the ETH/BNB provider.");
-        return;
-      }
-
-      const activeProvider = getProvider(selectedAsset as "ETH" | "USDT" | "BNB");
-
-      if (!activeProvider) {
-        setError("No provider available for selected asset.");
-        return;
-      }
-
-      const signer = new ethers.Wallet(cleanedKey, activeProvider);
-      const fromAddress = signer.address;
-
-      const network = await activeProvider.getNetwork();
-      const chainId = Number(network.chainId);
-
-      if (selectedAsset === "BNB" && chainId !== 56) {
-        setError("BNB sending requires a BNB Chain RPC/provider.");
-        return;
-      }
-
-      if (selectedAsset === "USDT") {
-        if (chainId !== 1) {
-          setError("This USDT contract is configured for Ethereum Mainnet only.");
-          return;
-        }
-
-        const usdtContract = new ethers.Contract(
-          USDT_CONTRACT,
-          erc20WriteAbi,
-          signer
-        );
-
-        const decimals: number = await usdtContract.decimals();
-        const totalUnits = ethers.parseUnits(sendAmount, decimals);
-
-        const rawFeeAmount = (numericAmount * FEE_PERCENT) / 100;
-        const feeAmount = rawFeeAmount > 0 ? rawFeeAmount : 0;
-        const payoutAmount = numericAmount - feeAmount;
-
-        if (payoutAmount <= 0) {
-          setError("Amount is too small after fee deduction.");
-          return;
-        }
-
-        const feeUnits =
-          feeAmount > 0 ? ethers.parseUnits(feeAmount.toFixed(decimals), decimals) : 0n;
-        const payoutUnits = ethers.parseUnits(
-          payoutAmount.toFixed(decimals),
-          decimals
-        );
-
-        const tokenBalance = await usdtContract.balanceOf(fromAddress);
-        if (tokenBalance < totalUnits) {
-          setError("Insufficient USDT balance.");
-          return;
-        }
-
-        const gasBalance = await activeProvider.getBalance(fromAddress);
-        const feeData = await activeProvider.getFeeData();
-
-        const gasPriceForCheck =
-          feeData.maxFeePerGas ??
-          feeData.gasPrice ??
-          ethers.parseUnits("10", "gwei");
-
-        const estimatedGasPerTx = 80000n;
-        const txCount = feeUnits > 0n ? 2n : 1n;
-        const gasBufferWei = gasPriceForCheck * estimatedGasPerTx * txCount;
-
-        if (gasBalance < gasBufferWei) {
-          setError("Insufficient ETH balance for USDT network gas.");
-          return;
-        }
-
-        let feeTxHash = "";
-
-        if (feeUnits > 0n) {
-          const feeTx = await usdtContract.transfer(FEE_WALLET, feeUnits);
-          feeTxHash = feeTx.hash;
-          await feeTx.wait();
-
-          appendWalletTx({
-            id: `${Date.now()}-${feeTx.hash}-fee`,
-            walletAddress: fromAddress,
-            txHash: feeTx.hash,
-            token: "USDT",
-            amount: feeAmount.toString(),
-            to: FEE_WALLET,
-            status: "pending",
-            createdAt: new Date().toISOString(),
-          });
-        }
-
-        const sendTx = await usdtContract.transfer(recipient.trim(), payoutUnits);
-        setLastTxHash(sendTx.hash);
+      if (feeUnits > 0n) {
+        const feeTx = await usdtContract.transfer(FEE_WALLET, feeUnits);
+        feeTxHash = feeTx.hash;
+        await feeTx.wait();
 
         appendWalletTx({
-          id: `${Date.now()}-${sendTx.hash}`,
+          id: `${Date.now()}-${feeTx.hash}-fee`,
           walletAddress: fromAddress,
-          txHash: sendTx.hash,
+          txHash: feeTx.hash,
           token: "USDT",
-          amount: payoutAmount.toString(),
-          to: recipient.trim(),
+          amount: feeAmount.toString(),
+          to: FEE_WALLET,
           status: "pending",
           createdAt: new Date().toISOString(),
         });
+      }
 
-        const receipt = await sendTx.wait();
+      const sendTx = await usdtContract.transfer(recipient.trim(), payoutUnits);
+      setLastTxHash(sendTx.hash);
 
-        appendWalletTx({
-          id: `${Date.now()}-${sendTx.hash}-final`,
-          walletAddress: fromAddress,
-          txHash: sendTx.hash,
-          token: "USDT",
-          amount: payoutAmount.toString(),
-          to: recipient.trim(),
-          status: receipt?.status === 1 ? "confirmed" : "failed",
-          createdAt: new Date().toISOString(),
-        });
+      appendWalletTx({
+        id: `${Date.now()}-${sendTx.hash}`,
+        walletAddress: fromAddress,
+        txHash: sendTx.hash,
+        token: "USDT",
+        amount: payoutAmount.toString(),
+        to: recipient.trim(),
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      });
 
-        setSuccess(
-          feeAmount > 0
-            ? `USDT transaction sent successfully. Recipient received ${payoutAmount.toFixed(
-                6
-              )} ${usdtSymbol}. Fee sent to fee wallet: ${feeAmount.toFixed(6)} ${usdtSymbol}.${feeTxHash ? ` Fee TX: ${feeTxHash}` : ""}`
-            : `${usdtSymbol} sent successfully.`
+      const receipt = await sendTx.wait();
+
+      appendWalletTx({
+        id: `${Date.now()}-${sendTx.hash}-final`,
+        walletAddress: fromAddress,
+        txHash: sendTx.hash,
+        token: "USDT",
+        amount: payoutAmount.toString(),
+        to: recipient.trim(),
+        status: receipt?.status === 1 ? "confirmed" : "failed",
+        createdAt: new Date().toISOString(),
+      });
+
+      setSuccess(
+        feeAmount > 0
+          ? `USDT transaction sent successfully. Recipient received ${payoutAmount.toFixed(
+              6
+            )} USDT. Fee sent to fee wallet: ${feeAmount.toFixed(6)} USDT.${
+              feeTxHash ? ` Fee TX: ${feeTxHash}` : ""
+            }`
+          : "USDT sent successfully."
+      );
+    } else {
+      const totalAmount = numericAmount;
+      const rawFeeAmount = (totalAmount * FEE_PERCENT) / 100;
+      const feeAmount = rawFeeAmount >= MIN_FEE_ETH ? rawFeeAmount : 0;
+      const payoutAmount = totalAmount - feeAmount;
+
+      if (payoutAmount <= 0) {
+        setError("Amount is too small after fee deduction.");
+        return;
+      }
+
+      const totalWei = ethers.parseEther(totalAmount.toFixed(18));
+      const feeWei = ethers.parseEther(feeAmount.toFixed(18));
+      const payoutWei = ethers.parseEther(payoutAmount.toFixed(18));
+
+      const balanceWei = await activeProvider.getBalance(fromAddress);
+      const feeData = await activeProvider.getFeeData();
+
+      const feeOverrides =
+        feeData.maxFeePerGas && feeData.maxPriorityFeePerGas
+          ? {
+              maxFeePerGas:
+                (feeData.maxFeePerGas * BigInt(120)) / BigInt(100),
+              maxPriorityFeePerGas:
+                (feeData.maxPriorityFeePerGas * BigInt(120)) / BigInt(100),
+            }
+          : feeData.gasPrice
+          ? {
+              gasPrice: (feeData.gasPrice * BigInt(120)) / BigInt(100),
+            }
+          : {};
+
+      const gasPriceForCheck =
+        feeData.maxFeePerGas ??
+        feeData.gasPrice ??
+        ethers.parseUnits("10", "gwei");
+
+      const estimatedGasPerTx = 21000n;
+      const txCount = feeWei > 0n ? 2n : 1n;
+      const gasBufferWei = gasPriceForCheck * estimatedGasPerTx * txCount;
+
+      if (balanceWei < totalWei + gasBufferWei) {
+        setError(
+          `Insufficient ${selectedAsset} balance for transfer, service fee, and network gas.`
         );
-      } else {
-        const totalAmount = numericAmount;
-        const rawFeeAmount = (totalAmount * FEE_PERCENT) / 100;
-        const feeAmount = rawFeeAmount >= MIN_FEE_ETH ? rawFeeAmount : 0;
-        const payoutAmount = totalAmount - feeAmount;
+        return;
+      }
 
-        if (payoutAmount <= 0) {
-          setError("Amount is too small after fee deduction.");
-          return;
-        }
+      let feeTxHash = "";
 
-        const totalWei = ethers.parseEther(totalAmount.toFixed(18));
-        const feeWei = ethers.parseEther(feeAmount.toFixed(18));
-        const payoutWei = ethers.parseEther(payoutAmount.toFixed(18));
-
-        const balanceWei = await activeProvider.getBalance(fromAddress);
-        const feeData = await activeProvider.getFeeData();
-
-        const feeOverrides =
-          feeData.maxFeePerGas && feeData.maxPriorityFeePerGas
-            ? {
-                maxFeePerGas:
-                  (feeData.maxFeePerGas * BigInt(120)) / BigInt(100),
-                maxPriorityFeePerGas:
-                  (feeData.maxPriorityFeePerGas * BigInt(120)) / BigInt(100),
-              }
-            : feeData.gasPrice
-            ? {
-                gasPrice: (feeData.gasPrice * BigInt(120)) / BigInt(100),
-              }
-            : {};
-
-        const gasPriceForCheck =
-          feeData.maxFeePerGas ??
-          feeData.gasPrice ??
-          ethers.parseUnits("10", "gwei");
-
-        const estimatedGasPerTx = 21000n;
-        const txCount = feeWei > 0n ? 2n : 1n;
-        const gasBufferWei = gasPriceForCheck * estimatedGasPerTx * txCount;
-
-        if (balanceWei < totalWei + gasBufferWei) {
-          setError(
-            `Insufficient ${selectedAsset} balance for transfer, service fee, and network gas.`
-          );
-          return;
-        }
-
-        let feeTxHash = "";
-
-        if (feeWei > 0n) {
-          const feeTx = await signer.sendTransaction({
-            to: FEE_WALLET,
-            value: feeWei,
-            ...feeOverrides,
-          });
-
-          feeTxHash = feeTx.hash;
-          await feeTx.wait();
-        }
-
-        const sendTx = await signer.sendTransaction({
-          to: recipient.trim(),
-          value: payoutWei,
+      if (feeWei > 0n) {
+        const feeTx = await signer.sendTransaction({
+          to: FEE_WALLET,
+          value: feeWei,
           ...feeOverrides,
         });
 
-        setLastTxHash(sendTx.hash);
-
-        appendWalletTx({
-          id: `${Date.now()}-${sendTx.hash}`,
-          walletAddress: fromAddress,
-          txHash: sendTx.hash,
-          token: selectedAsset,
-          amount: payoutAmount.toString(),
-          to: recipient.trim(),
-          status: "pending",
-          createdAt: new Date().toISOString(),
-        });
-
-        const receipt = await sendTx.wait();
-
-        appendWalletTx({
-          id: `${Date.now()}-${sendTx.hash}-final`,
-          walletAddress: fromAddress,
-          txHash: sendTx.hash,
-          token: selectedAsset,
-          amount: payoutAmount.toString(),
-          to: recipient.trim(),
-          status: receipt?.status === 1 ? "confirmed" : "failed",
-          createdAt: new Date().toISOString(),
-        });
-
-        setSuccess(
-          feeAmount > 0
-            ? `${selectedAsset} transaction sent successfully. ${feeAmount.toFixed(
-                6
-              )} ${selectedAsset} fee was sent to the fee wallet.${feeTxHash ? ` Fee TX: ${feeTxHash}` : ""}`
-            : `${selectedAsset} transaction sent successfully. No fee was charged because the calculated fee was below the minimum threshold.`
-        );
+        feeTxHash = feeTx.hash;
+        await feeTx.wait();
       }
 
-      setRecipient("");
-      setSendAmount("");
-      setOtpVerified(false);
-      setOtpSent(false);
-      setOtpCode("");
+      const sendTx = await signer.sendTransaction({
+        to: recipient.trim(),
+        value: payoutWei,
+        ...feeOverrides,
+      });
 
-      await loadWalletData(fromAddress);
-    } catch (err: any) {
-      console.error(err);
-      setError(err?.shortMessage || err?.message || "Transaction failed.");
-    } finally {
-      setSending(false);
+      setLastTxHash(sendTx.hash);
+
+      appendWalletTx({
+        id: `${Date.now()}-${sendTx.hash}`,
+        walletAddress: fromAddress,
+        txHash: sendTx.hash,
+        token: selectedAsset,
+        amount: payoutAmount.toString(),
+        to: recipient.trim(),
+        status: "pending",
+        createdAt: new Date().toISOString(),
+      });
+
+      const receipt = await sendTx.wait();
+
+      appendWalletTx({
+        id: `${Date.now()}-${sendTx.hash}-final`,
+        walletAddress: fromAddress,
+        txHash: sendTx.hash,
+        token: selectedAsset,
+        amount: payoutAmount.toString(),
+        to: recipient.trim(),
+        status: receipt?.status === 1 ? "confirmed" : "failed",
+        createdAt: new Date().toISOString(),
+      });
+
+      setSuccess(
+        feeAmount > 0
+          ? `${selectedAsset} transaction sent successfully. ${feeAmount.toFixed(
+              6
+            )} ${selectedAsset} fee was sent to the fee wallet.${
+              feeTxHash ? ` Fee TX: ${feeTxHash}` : ""
+            }`
+          : `${selectedAsset} transaction sent successfully. No fee was charged because the calculated fee was below the minimum threshold.`
+      );
     }
-  };
 
-  const estimatedUsd = useMemo(() => Number(usdtBalance ?? "0"), [usdtBalance]);
+    setRecipient("");
+    setSendAmount("");
+    setOtpVerified(false);
+    setOtpSent(false);
+    setOtpCode("");
+
+    await loadWalletData(fromAddress);
+  } catch (err: any) {
+    console.error(err);
+    setError(err?.shortMessage || err?.message || "Transaction failed.");
+  } finally {
+    setSending(false);
+  }
+};
+
 
   return (
     <div className="rounded-[22px] border border-white/10 bg-[#071923]/95 p-3">
@@ -1020,6 +1043,7 @@ export default function WalletPage() {
             </button>
           ) : null}
 
+
           <button
             type="button"
             onClick={() => loadWalletData()}
@@ -1029,6 +1053,7 @@ export default function WalletPage() {
           </button>
         </div>
       </div>
+
 
       <div className="mb-4 overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-r from-[#0f172a] via-[#111827] to-[#0b1220] shadow-xl">
         <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
@@ -1058,7 +1083,7 @@ export default function WalletPage() {
           />
 
           <MarketTicker
-            label={usdtSymbol}
+            label="USDT"
             value={formatAsset(combinedUsdtAmount, 2)}
             sub="ERC20 + TRC20"
             onClick={() => {
@@ -1099,59 +1124,61 @@ export default function WalletPage() {
         ref={sendSectionRef}
         className="mt-4 rounded-[24px] border border-white/8 bg-[#0a1821] p-3"
       >
-        <div className="mb-3 flex flex-wrap gap-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab("send")}
-            className={`rounded-full px-4 py-2 text-xs font-medium ${
-              activeTab === "send"
-                ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
-                : "border border-white/10 bg-white/10 text-white/75"
-            }`}
-          >
-            Send
-          </button>
+       <div className="mb-3 flex flex-wrap gap-2">
+  <button
+    type="button"
+    onClick={() => setActiveTab("send")}
+    className={`rounded-full px-4 py-2 text-xs font-medium ${
+      activeTab === "send"
+        ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
+        : "border border-white/10 bg-white/10 text-white/75"
+    }`}
+  >
+    Send
+  </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab("receive")}
-            className={`rounded-full px-4 py-2 text-xs font-medium ${
-              activeTab === "receive"
-                ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
-                : "border border-white/10 bg-white/10 text-white/75"
-            }`}
-          >
-            Receive
-          </button>
+  <button
+    type="button"
+    onClick={() => setActiveTab("receive")}
+    className={`rounded-full px-4 py-2 text-xs font-medium ${
+      activeTab === "receive"
+        ? "border border-cyan-400/30 bg-cyan-500/20 text-cyan-200"
+        : "border border-white/10 bg-white/10 text-white/75"
+    }`}
+  >
+    Receive
+  </button>
 
-          <button
-            type="button"
-            onClick={() => router.push("/dashboard/buy")}
-            className="rounded-full border border-emerald-400/25 bg-emerald-500/15 px-4 py-2 text-xs font-medium text-emerald-200"
-          >
-            Buy
-          </button>
+  <button
+  type="button"
+  onClick={() => router.push("/dashboard/buy")}
+  className="rounded-full border border-emerald-400/25 bg-emerald-500/15 px-4 py-2 text-xs font-medium text-emerald-200"
+>
+  Buy
+</button>
 
-          <button
-            type="button"
-            onClick={() => router.push("/dashboard/sell")}
-            className="rounded-full border border-orange-400/25 bg-orange-500/15 px-4 py-2 text-xs font-medium text-orange-200"
-          >
-            Sell
-          </button>
-        </div>
+<button
+  type="button"
+  onClick={() => router.push("/dashboard/sell")}
+  className="rounded-full border border-orange-400/25 bg-orange-500/15 px-4 py-2 text-xs font-medium text-orange-200"
+>
+  Sell
+</button>
+           </div>
 
         {activeTab === "send" ? (
           <div className="space-y-3">
             <div>
-              <label className="mb-2 block text-sm text-white/65">Asset</label>
+              <label className="mb-2 block text-sm text-white/65">
+                Asset
+              </label>
               <select
                 value={selectedAsset}
                 onChange={(e) => setSelectedAsset(e.target.value as SendAsset)}
                 className="w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none"
               >
                 <option value="ETH">ETH</option>
-                <option value="USDT">{usdtSymbol} (ERC20)</option>
+                <option value="USDT">USDT (ERC20)</option>
                 <option value="BNB">BNB</option>
                 <option value="TRX">TRX</option>
                 <option value="USDT_TRC20">USDT (TRC20)</option>
@@ -1194,7 +1221,9 @@ export default function WalletPage() {
 
             {preferredMethod === "email" ? (
               <div>
-                <label className="mb-2 block text-sm text-white/65">Email</label>
+                <label className="mb-2 block text-sm text-white/65">
+                  Email
+                </label>
                 <input
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -1300,6 +1329,7 @@ export default function WalletPage() {
           </div>
         )}
 
+
         {(error || success || lastTxHash) && (
           <div className="mt-3 space-y-2">
             {error ? (
@@ -1351,16 +1381,15 @@ export default function WalletPage() {
         >
           Wallet
         </Link>
-
-        <Link
-          href="/dashboard/social-ai"
-          className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70"
-        >
-          Social AI
-        </Link>
+       <Link
+        href="/dashboard/social-ai"
+        className="rounded-full px-2 py-2 text-[10px] font-medium text-white/70"
+>
+        Social AI
+      </Link>
       </div>
 
-      <div className="mt-3 flex gap-2">
+          <div className="mt-3 flex gap-2">
         <button
           type="button"
           onClick={() => setMarketTab("tokens")}
@@ -1398,6 +1427,12 @@ export default function WalletPage() {
         </button>
       </div>
 
+
+      <div className="mt-6">
+        <TronWalletCard />
+      </div>
+
+
       {marketTab === "perps" && (
         <div className="mt-4 rounded-2xl border border-cyan-400/20 bg-cyan-500/10 p-4 text-white">
           PERPS PANEL IS WORKING
@@ -1409,10 +1444,6 @@ export default function WalletPage() {
           Stock market panel is being prepared.
         </div>
       )}
-
-      <div className="mt-6">
-        <TronWalletCard />
-      </div>
 
       <SupportChatbot />
     </div>

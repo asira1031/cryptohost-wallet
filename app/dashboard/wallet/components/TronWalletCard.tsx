@@ -1,7 +1,6 @@
 "use client";
-
-import { useEffect, useState } from "react";
 import { generateTronWallet } from "@/app/lib/tron/wallet";
+import { useEffect, useState } from "react";
 import {
   getStoredTronWallet,
   saveTronWallet,
