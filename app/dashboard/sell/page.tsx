@@ -11,7 +11,7 @@ export default function SellPage() {
   const [payoutMethod, setPayoutMethod] = useState("Bank / Card");
   const [prices, setPrices] = useState<Record<SellAsset, number>>({
     ETH: 0,
-    USDT: 1,
+    USDT: 0,
     BNB: 0,
     TRX: 0,
   });
@@ -26,15 +26,13 @@ export default function SellPage() {
           { cache: "no-store" }
         );
 
-        if (!res.ok) {
-          throw new Error("Failed to fetch live prices");
-        }
+        if (!res.ok) throw new Error("Failed to fetch live prices");
 
         const data = await res.json();
 
         setPrices({
           ETH: Number(data?.ethereum?.usd ?? 0),
-          USDT: Number(data?.tether?.usd ?? 1),
+          USDT: Number(data?.tether?.usd ?? 0),
           BNB: Number(data?.binancecoin?.usd ?? 0),
           TRX: Number(data?.tron?.usd ?? 0),
         });
@@ -43,17 +41,13 @@ export default function SellPage() {
       }
     };
 
-    void fetchPrices();
-
-    const interval = setInterval(() => {
-      void fetchPrices();
-    }, 30000);
-
+    fetchPrices();
+    const interval = setInterval(fetchPrices, 30000);
     return () => clearInterval(interval);
   }, []);
 
   const amountValue = Number(assetAmount) || 0;
-  const currentPrice = prices[asset] > 0 ? prices[asset] : 0;
+  const currentPrice = prices[asset] || 0;
   const grossValue = amountValue * currentPrice;
   const serviceFeeAmount = grossValue * (serviceFeePercent / 100);
   const estimatedPayout = Math.max(grossValue - serviceFeeAmount, 0);
@@ -73,6 +67,25 @@ export default function SellPage() {
     });
   }, [estimatedPayout]);
 
+  // 🔥 SELL REDIRECT LOGIC
+  function buildSellUrl() {
+    const amount = amountValue > 0 ? String(amountValue) : "100";
+
+    const url = new URL("https://global.transak.com");
+
+    url.searchParams.set("fiatCurrency", "USD");
+    url.searchParams.set("cryptoCurrencyCode", asset);
+    url.searchParams.set("cryptoAmount", amount);
+    url.searchParams.set("isBuyOrSell", "SELL");
+
+    return url.toString();
+  }
+
+  function handleSell() {
+    const url = buildSellUrl();
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#2d1b0f_0%,_#031019_45%,_#020b12_100%)] px-4 py-5 text-white">
       <div className="mx-auto max-w-md">
@@ -91,7 +104,7 @@ export default function SellPage() {
 
           <Link
             href="/dashboard/wallet"
-            className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-medium text-white/80 transition hover:bg-white/15"
+            className="rounded-full border border-white/10 bg-white/10 px-4 py-2 text-xs font-medium text-white/80 hover:bg-white/15"
           >
             Back
           </Link>
@@ -102,13 +115,13 @@ export default function SellPage() {
             <p className="text-[11px] uppercase tracking-[0.28em] text-orange-300/75">
               Sell Panel
             </p>
-            <p className="mt-2 text-sm leading-6 text-white/72">
-              Select the asset you want to sell and review your estimated payout.
+            <p className="mt-2 text-sm text-white/72">
+              Select the asset you want to sell and review your payout.
             </p>
           </div>
 
           <div className="space-y-4 p-4">
-            <div className="rounded-[28px] border border-white/10 bg-[#06131b]/95 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+            <div className="rounded-[28px] border border-white/10 bg-[#06131b]/95 p-4">
               <p className="mb-3 text-[11px] uppercase tracking-[0.28em] text-white/45">
                 Choose Asset
               </p>
@@ -117,12 +130,11 @@ export default function SellPage() {
                 {(["ETH", "USDT", "BNB", "TRX"] as SellAsset[]).map((item) => (
                   <button
                     key={item}
-                    type="button"
                     onClick={() => setAsset(item)}
-                    className={`rounded-2xl px-3 py-3 text-sm font-semibold transition ${
+                    className={`rounded-2xl px-3 py-3 text-sm font-semibold ${
                       asset === item
-                        ? "border border-orange-400/30 bg-orange-500/20 text-orange-200 shadow-[0_0_20px_rgba(249,115,22,0.12)]"
-                        : "border border-white/10 bg-white/[0.04] text-white/75 hover:bg-white/[0.07]"
+                        ? "border border-orange-400/30 bg-orange-500/20 text-orange-200"
+                        : "border border-white/10 bg-white/[0.04] text-white/75"
                     }`}
                   >
                     {item}
@@ -131,41 +143,24 @@ export default function SellPage() {
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-white/10 bg-[#06131b]/95 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-              <label className="mb-3 block text-[11px] uppercase tracking-[0.28em] text-white/45">
-                Payout Method
-              </label>
-
-              <select
-                value={payoutMethod}
-                onChange={(e) => setPayoutMethod(e.target.value)}
-                className="w-full rounded-2xl border border-white/10 bg-[#031019] px-4 py-3 text-sm text-white outline-none"
-              >
-                <option>Bank / Card</option>
-                <option>Wallet Balance</option>
-                <option>Manual Settlement</option>
-              </select>
-            </div>
-
-            <div className="rounded-[28px] border border-white/10 bg-[#06131b]/95 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-              <label className="mb-3 block text-[11px] uppercase tracking-[0.28em] text-white/45">
+            <div className="rounded-[28px] border border-white/10 bg-[#06131b]/95 p-4">
+              <label className="mb-3 block text-[11px] uppercase text-white/45">
                 Enter {asset} Amount
               </label>
 
               <input
                 value={assetAmount}
                 onChange={(e) => setAssetAmount(e.target.value)}
-                placeholder={asset === "USDT" ? "100" : "0.5"}
-                className="w-full rounded-2xl border border-white/10 bg-[#031019] px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
+                placeholder="100"
+                className="w-full rounded-2xl border border-white/10 bg-[#031019] px-4 py-3 text-sm text-white"
               />
 
               <div className="mt-3 grid grid-cols-4 gap-2">
                 {quickAmounts.map((amount) => (
                   <button
                     key={amount}
-                    type="button"
                     onClick={() => setAssetAmount(String(amount))}
-                    className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-medium text-white/80 transition hover:bg-white/[0.08]"
+                    className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs text-white/80"
                   >
                     {amount}
                   </button>
@@ -173,71 +168,38 @@ export default function SellPage() {
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-orange-400/15 bg-gradient-to-br from-orange-500/12 via-amber-500/8 to-[#06131b] p-4 shadow-[0_0_30px_rgba(249,115,22,0.08)]">
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-sm text-white/65">Market Price</span>
-                <span className="text-sm font-semibold text-white">
-                  {formattedMarketPrice}
-                </span>
+            <div className="rounded-[28px] border border-orange-400/15 bg-gradient-to-br from-orange-500/12 to-[#06131b] p-4">
+              <div className="flex justify-between mb-2">
+                <span>Market Price</span>
+                <span>{formattedMarketPrice}</span>
               </div>
 
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-sm text-white/65">Sell Amount</span>
-                <span className="text-sm font-semibold text-white">
-                  {amountValue.toLocaleString(undefined, {
-                    maximumFractionDigits:
-                      asset === "USDT" || asset === "TRX" ? 2 : 6,
-                  })}{" "}
-                  {asset}
-                </span>
+              <div className="flex justify-between mb-2">
+                <span>Sell Amount</span>
+                <span>{amountValue} {asset}</span>
               </div>
 
-              <div className="mb-3 flex items-center justify-between">
-                <span className="text-sm text-white/65">Gross Value</span>
-                <span className="text-sm font-semibold text-white">
-                  ${grossValue.toLocaleString(undefined, {
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
+              <div className="flex justify-between mb-2">
+                <span>Gross Value</span>
+                <span>${grossValue.toFixed(2)}</span>
               </div>
 
-              <div className="mb-4 flex items-center justify-between">
-                <span className="text-sm text-white/65">
-                  Service Fee ({serviceFeePercent}%)
-                </span>
-                <span className="text-sm font-semibold text-white">
-                  ${serviceFeeAmount.toLocaleString(undefined, {
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
+              <div className="flex justify-between mb-2">
+                <span>Service Fee ({serviceFeePercent}%)</span>
+                <span>${serviceFeeAmount.toFixed(2)}</span>
               </div>
 
-              <div className="rounded-[24px] border border-orange-400/20 bg-orange-500/10 px-4 py-5">
-                <p className="text-[11px] uppercase tracking-[0.28em] text-orange-200/75">
-                  Estimated Payout
-                </p>
-                <p className="mt-3 text-3xl font-bold tracking-tight text-orange-100">
-                  ${formattedEstimatedPayout}
-                </p>
+              <div className="text-center mt-4 text-2xl font-bold">
+                ${formattedEstimatedPayout}
               </div>
             </div>
 
             <button
-              type="button"
-              className="w-full rounded-2xl border border-orange-400/30 bg-gradient-to-r from-orange-500/30 to-amber-500/20 px-4 py-3.5 text-sm font-semibold text-orange-50"
-              onClick={() => {
-                alert(
-                  "Sell service is coming soon. We are finalizing secure payout integration."
-                );
-              }}
+              onClick={handleSell}
+              className="w-full rounded-2xl bg-orange-500 py-3 text-white font-semibold"
             >
-              Coming Soon
+              Continue to Sell
             </button>
-
-            <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs leading-5 text-white/55">
-              Sell service is coming soon. Secure payout routing is currently
-              being finalized.
-            </div>
           </div>
         </div>
       </div>
