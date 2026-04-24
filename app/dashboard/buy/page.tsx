@@ -99,20 +99,25 @@ export default function BuyPage() {
     }
 
     if (provider === "Transak") {
-      const url = new URL("https://global.transak.com");
-      url.searchParams.set("fiatCurrency", "USD");
-      url.searchParams.set("fiatAmount", amount);
-      url.searchParams.set("cryptoCurrencyCode", asset);
-      url.searchParams.set("isBuyOrSell", "BUY");
-      return url.toString();
-    }
+  const url = new URL("https://global.transak.com");
 
-    const url = new URL("https://www.binance.com/en/buy-sell-crypto");
-    url.searchParams.set("type", "BUY");
-    url.searchParams.set("crypto", asset);
-    url.searchParams.set("fiat", "USD");
-    url.searchParams.set("amount", amount);
-    return url.toString();
+  url.searchParams.set("apiKey", "b32a1a2b-73fd-42e3-92ee-6559803f6edc"); // 💰 YOUR KEY
+  url.searchParams.set("fiatCurrency", "USD");
+  url.searchParams.set("fiatAmount", amount);
+  url.searchParams.set("cryptoCurrencyCode", asset);
+  url.searchParams.set("isBuyOrSell", "BUY");
+
+  return url.toString();
+}
+
+  function buildBinanceUrl(asset: string, amount: string) {
+  const url = new URL("https://www.binance.com/en/crypto/buy/USD/" + asset);
+
+  url.searchParams.set("amount", amount);
+  url.searchParams.set("ref", "522026984");
+
+  return url.toString();
+}
   }
 
   function handleAmountChange(value: string) {
