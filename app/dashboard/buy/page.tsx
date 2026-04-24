@@ -8,7 +8,7 @@ type Provider = "MoonPay" | "Transak" | "Binance";
 
 const ASSETS: BuyAsset[] = ["ETH", "USDT", "BNB", "TRX"];
 const quickAmounts = [50, 100, 250, 500];
-const MAX_BUY_USD = 900; // approx ₱50,000
+const MAX_BUY_USD = 900;
 
 export default function BuyPage() {
   const [asset, setAsset] = useState<BuyAsset>("USDT");
@@ -87,6 +87,13 @@ export default function BuyPage() {
     localStorage.setItem("last_order", JSON.stringify(order));
   }
 
+  function buildBinanceUrl(amount: string) {
+    const url = new URL(`https://www.binance.com/en/crypto/buy/USD/${asset}`);
+    url.searchParams.set("amount", amount);
+    url.searchParams.set("ref", "522026984");
+    return url.toString();
+  }
+
   function buildRedirectUrl() {
     const amount = usdValue > 0 ? String(usdValue) : "100";
 
@@ -99,25 +106,16 @@ export default function BuyPage() {
     }
 
     if (provider === "Transak") {
-  const url = new URL("https://global.transak.com");
+      const url = new URL("https://global.transak.com");
+      url.searchParams.set("apiKey", "b32a1a2b-73fd-42e3-92ee-6559803f6edc");
+      url.searchParams.set("fiatCurrency", "USD");
+      url.searchParams.set("fiatAmount", amount);
+      url.searchParams.set("cryptoCurrencyCode", asset);
+      url.searchParams.set("isBuyOrSell", "BUY");
+      return url.toString();
+    }
 
-  url.searchParams.set("apiKey", "b32a1a2b-73fd-42e3-92ee-6559803f6edc"); // 💰 YOUR KEY
-  url.searchParams.set("fiatCurrency", "USD");
-  url.searchParams.set("fiatAmount", amount);
-  url.searchParams.set("cryptoCurrencyCode", asset);
-  url.searchParams.set("isBuyOrSell", "BUY");
-
-  return url.toString();
-}
-
-  function buildBinanceUrl(asset: string, amount: string) {
-  const url = new URL("https://www.binance.com/en/crypto/buy/USD/" + asset);
-
-  url.searchParams.set("amount", amount);
-  url.searchParams.set("ref", "522026984");
-
-  return url.toString();
-}
+    return buildBinanceUrl(amount);
   }
 
   function handleAmountChange(value: string) {
@@ -326,8 +324,6 @@ export default function BuyPage() {
             >
               Continue with {provider}
             </button>
-
-            
           </div>
         </div>
       </div>
