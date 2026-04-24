@@ -18,25 +18,29 @@ export default function TronWalletCard() {
   const [success, setSuccess] = useState("");
 
   async function loadBalances(address: string) {
-    try {
-      setLoading(true);
-      setError("");
-      setSuccess("");
+  try {
+    setLoading(true);
 
-      // Safe mode for static export:
-      // disable backend fetch temporarily to avoid HTML/JSON parse errors
-      setTrxBalance(0);
-      setUsdtBalance(0);
+    // clear previous states (clean UI)
+    setError("");
+    setSuccess("");
 
-      if (address) {
-        setSuccess("TRON wallet loaded. Balance view is coming soon.");
-      }
-    } catch {
-      setError("TRON balance fetch is temporarily unavailable.");
-    } finally {
-      setLoading(false);
+    // fallback (safe mode / no API yet)
+    setTrxBalance(0);
+    setUsdtBalance(0);
+
+    // optional: show clean status ONLY if may address
+    if (address) {
+      setSuccess("Wallet ready.");
     }
+
+  } catch (err) {
+    // minimal clean error (no technical noise)
+    setError("Unable to load balance.");
+  } finally {
+    setLoading(false);
   }
+}
 
   async function handleCreateWallet() {
     try {
@@ -182,21 +186,14 @@ export default function TronWalletCard() {
             </div>
           </div>
 
-          <div className="rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-3 text-xs text-yellow-100">
-            Local test mode only. This TRON wallet is stored in your browser for
-            now. Do not remove it unless you already backed up the private key.
-          </div>
+          
 
-          <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/10 p-3 text-xs text-cyan-100">
-            TRON balance loading is currently in safe mode while live TRON
-            network integration is being finalized.
-          </div>
         </div>
       ) : (
         <div className="rounded-2xl border border-white/10 bg-[#06131b] p-4 text-sm text-white/75">
           No TRON wallet found yet. Click{" "}
           <span className="font-semibold text-white">Create TRON Wallet</span>{" "}
-          to generate one locally for testing.
+          to generate your TRON wallet.
         </div>
       )}
 
