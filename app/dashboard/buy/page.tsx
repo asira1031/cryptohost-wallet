@@ -4,11 +4,18 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 type BuyAsset = "ETH" | "USDT" | "BNB" | "TRX";
+type Provider = "MoonPay" | "Transak" | "Binance";
+
+const ASSETS: BuyAsset[] = ["ETH", "USDT", "BNB", "TRX"];
+
+const quickAmounts = [50, 100, 250, 500];
 
 export default function BuyPage() {
   const [asset, setAsset] = useState<BuyAsset>("USDT");
   const [usdAmount, setUsdAmount] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("Card / Bank");
+  const [provider, setProvider] = useState<Provider>("MoonPay");
+
   const [prices, setPrices] = useState<Record<BuyAsset, number>>({
     ETH: 0,
     USDT: 1,
@@ -26,15 +33,13 @@ export default function BuyPage() {
           { cache: "no-store" }
         );
 
-        if (!res.ok) {
-          throw new Error("Failed to fetch live prices");
-        }
+        if (!res.ok) throw new Error("Failed to fetch live prices");
 
         const data = await res.json();
 
         setPrices({
           ETH: Number(data?.ethereum?.usd ?? 0),
-          USDT: Number(data?.tether?.usd ?? 1),
+          USDT: Number(data?.tether?.usd ?? 0),
           BNB: Number(data?.binancecoin?.usd ?? 0),
           TRX: Number(data?.tron?.usd ?? 0),
         });
@@ -44,10 +49,7 @@ export default function BuyPage() {
     };
 
     void fetchPrices();
-
-    const interval = setInterval(() => {
-      void fetchPrices();
-    }, 30000);
+    const interval = setInterval(() => void fetchPrices(), 30000);
 
     return () => clearInterval(interval);
   }, []);
@@ -55,12 +57,8 @@ export default function BuyPage() {
   const usdValue = Number(usdAmount) || 0;
   const serviceFeeAmount = usdValue * (serviceFeePercent / 100);
   const totalToPay = usdValue + serviceFeeAmount;
-  const netUsdForConversion = usdValue;
-  const currentPrice = prices[asset] > 0 ? prices[asset] : 0;
-  const estimatedReceive =
-    currentPrice > 0 ? netUsdForConversion / currentPrice : 0;
-
-  const quickAmounts = [50, 100, 250, 500];
+  const currentPrice = prices[asset] || 0;
+  const estimatedReceive = currentPrice > 0 ? usdValue / currentPrice : 0;
 
   const formattedReceive = useMemo(() => {
     if (!estimatedReceive) return "0";
@@ -76,6 +74,39 @@ export default function BuyPage() {
     })}`;
   }, [currentPrice]);
 
+  function buildRedirectUrl() {
+    const amount = usdValue > 0 ? String(usdValue) : "100";
+
+    if (provider === "MoonPay") {
+      const url = new URL("https://buy.moonpay.com");
+      url.searchParams.set("currencyCode", asset.toLowerCase());
+      url.searchParams.set("baseCurrencyCode", "usd");
+      url.searchParams.set("baseCurrencyAmount", amount);
+      return url.toString();
+    }
+
+    if (provider === "Transak") {
+      const url = new URL("https://global.transak.com");
+      url.searchParams.set("fiatCurrency", "USD");
+      url.searchParams.set("fiatAmount", amount);
+      url.searchParams.set("cryptoCurrencyCode", asset);
+      url.searchParams.set("isBuyOrSell", "BUY");
+      return url.toString();
+    }
+
+    const url = new URL("https://www.binance.com/en/buy-sell-crypto");
+    url.searchParams.set("type", "BUY");
+    url.searchParams.set("crypto", asset);
+    url.searchParams.set("fiat", "USD");
+    url.searchParams.set("amount", amount);
+    return url.toString();
+  }
+
+  function handleContinue() {
+    const url = buildRedirectUrl();
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#0b2a36_0%,_#031019_45%,_#020b12_100%)] px-4 py-5 text-white">
       <div className="mx-auto max-w-md">
@@ -88,7 +119,7 @@ export default function BuyPage() {
               Buy Crypto
             </h1>
             <p className="mt-1 text-sm text-white/55">
-              Premium purchase preview for digital assets
+              Buy digital assets through trusted payment providers
             </p>
           </div>
 
@@ -106,26 +137,25 @@ export default function BuyPage() {
               Buy Panel
             </p>
             <p className="mt-2 text-sm leading-6 text-white/72">
-              Select your preferred asset, funding source, and amount to preview
-              your purchase outcome.
+              Select asset, provider, funding source, and amount.
             </p>
           </div>
 
           <div className="space-y-4 p-4">
-            <div className="rounded-[28px] border border-white/10 bg-[#06131b]/95 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+            <div className="rounded-[28px] border border-white/10 bg-[#06131b]/95 p-4">
               <p className="mb-3 text-[11px] uppercase tracking-[0.28em] text-white/45">
                 Choose Asset
               </p>
 
               <div className="grid grid-cols-4 gap-2">
-                {(["ETH", "USDT", "BNB", "TRX"] as BuyAsset[]).map((item) => (
+                {ASSETS.map((item) => (
                   <button
                     key={item}
                     type="button"
                     onClick={() => setAsset(item)}
                     className={`rounded-2xl px-3 py-3 text-sm font-semibold transition ${
                       asset === item
-                        ? "border border-emerald-400/30 bg-emerald-500/20 text-emerald-200 shadow-[0_0_20px_rgba(16,185,129,0.12)]"
+                        ? "border border-emerald-400/30 bg-emerald-500/20 text-emerald-200"
                         : "border border-white/10 bg-white/[0.04] text-white/75 hover:bg-white/[0.07]"
                     }`}
                   >
@@ -135,7 +165,23 @@ export default function BuyPage() {
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-white/10 bg-[#06131b]/95 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+            <div className="rounded-[28px] border border-white/10 bg-[#06131b]/95 p-4">
+              <label className="mb-3 block text-[11px] uppercase tracking-[0.28em] text-white/45">
+                Provider
+              </label>
+
+              <select
+                value={provider}
+                onChange={(e) => setProvider(e.target.value as Provider)}
+                className="w-full rounded-2xl border border-white/10 bg-[#031019] px-4 py-3 text-sm text-white outline-none"
+              >
+                <option>MoonPay</option>
+                <option>Transak</option>
+                <option>Binance</option>
+              </select>
+            </div>
+
+            <div className="rounded-[28px] border border-white/10 bg-[#06131b]/95 p-4">
               <label className="mb-3 block text-[11px] uppercase tracking-[0.28em] text-white/45">
                 Payment Method
               </label>
@@ -151,7 +197,7 @@ export default function BuyPage() {
               </select>
             </div>
 
-            <div className="rounded-[28px] border border-white/10 bg-[#06131b]/95 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+            <div className="rounded-[28px] border border-white/10 bg-[#06131b]/95 p-4">
               <label className="mb-3 block text-[11px] uppercase tracking-[0.28em] text-white/45">
                 Enter USD Amount
               </label>
@@ -160,6 +206,7 @@ export default function BuyPage() {
                 value={usdAmount}
                 onChange={(e) => setUsdAmount(e.target.value)}
                 placeholder="100"
+                inputMode="decimal"
                 className="w-full rounded-2xl border border-white/10 bg-[#031019] px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
               />
 
@@ -177,7 +224,7 @@ export default function BuyPage() {
               </div>
             </div>
 
-            <div className="rounded-[28px] border border-emerald-400/15 bg-gradient-to-br from-emerald-500/12 via-cyan-500/8 to-[#06131b] p-4 shadow-[0_0_30px_rgba(16,185,129,0.08)]">
+            <div className="rounded-[28px] border border-emerald-400/15 bg-gradient-to-br from-emerald-500/12 via-cyan-500/8 to-[#06131b] p-4">
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-sm text-white/65">Market Price</span>
                 <span className="text-sm font-semibold text-white">
@@ -188,9 +235,7 @@ export default function BuyPage() {
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-sm text-white/65">Buy Amount</span>
                 <span className="text-sm font-semibold text-white">
-                  ${usdValue.toLocaleString(undefined, {
-                    maximumFractionDigits: 2,
-                  })}
+                  ${usdValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                 </span>
               </div>
 
@@ -199,18 +244,14 @@ export default function BuyPage() {
                   Service Fee ({serviceFeePercent}%)
                 </span>
                 <span className="text-sm font-semibold text-white">
-                  ${serviceFeeAmount.toLocaleString(undefined, {
-                    maximumFractionDigits: 2,
-                  })}
+                  ${serviceFeeAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                 </span>
               </div>
 
               <div className="mb-4 flex items-center justify-between">
                 <span className="text-sm text-white/65">Total To Pay</span>
                 <span className="text-sm font-semibold text-white">
-                  ${totalToPay.toLocaleString(undefined, {
-                    maximumFractionDigits: 2,
-                  })}
+                  ${totalToPay.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                 </span>
               </div>
 
@@ -226,19 +267,14 @@ export default function BuyPage() {
 
             <button
               type="button"
-              className="w-full rounded-2xl border border-emerald-400/30 bg-gradient-to-r from-emerald-500/30 to-cyan-500/20 px-4 py-3.5 text-sm font-semibold text-emerald-50"
-              onClick={() => {
-                alert(
-                  "Buy service is coming soon. Payment provider integration is being finalized."
-                );
-              }}
+              onClick={handleContinue}
+              className="w-full rounded-2xl border border-emerald-400/30 bg-gradient-to-r from-emerald-500/30 to-cyan-500/20 px-4 py-3.5 text-sm font-semibold text-emerald-50 transition hover:from-emerald-500/40 hover:to-cyan-500/30"
             >
-              Coming Soon
+              Continue with {provider}
             </button>
 
             <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs leading-5 text-white/55">
-              Buy service is coming soon. Payment provider integration is currently
-              in progress.
+              You will be redirected to {provider} to complete payment and verification.
             </div>
           </div>
         </div>
