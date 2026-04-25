@@ -1,6 +1,15 @@
 "use client";
 
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
 export default function HomePage() {
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/login");
+  }, [router]);
+
   return (
     <div
       style={{
@@ -13,7 +22,7 @@ export default function HomePage() {
         fontSize: "20px",
       }}
     >
-      CryptoHost Wallet is loading...
+      Redirecting to CryptoHost Wallet...
     </div>
   );
 }
