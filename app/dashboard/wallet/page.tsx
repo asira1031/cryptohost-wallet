@@ -773,15 +773,6 @@ if (selectedAsset === "USDT") {
     return;
   }
 
-  const usdtContract = new ethers.Contract(
-    USDT_CONTRACT,
-    erc20WriteAbi,
-    signer
-  );
-
-  const decimals: number = Number(await usdtContract.decimals());
-  const totalUnits = ethers.parseUnits(sendAmount, decimals);
-
   const rawFeeAmount = (numericAmount * FEE_PERCENT) / 100;
   const feeAmount = rawFeeAmount > 0 ? rawFeeAmount : 0;
   const payoutAmount = numericAmount - feeAmount;
@@ -791,91 +782,45 @@ if (selectedAsset === "USDT") {
     return;
   }
 
-  const feeUnits =
-    feeAmount > 0 ? ethers.parseUnits(feeAmount.toFixed(6), decimals) : 0n;
+  const res = await fetch("/api/send-usdt-erc20", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      to: recipient.trim(),
+      amount: payoutAmount.toFixed(6),
+    }),
+  });
 
-  const payoutUnits = ethers.parseUnits(
-    payoutAmount.toFixed(6),
-    decimals
+  const data = await res.json();
+
+  if (!res.ok || !data.success) {
+    setError(data.error || "USDT send failed.");
+    return;
+  }
+
+  setLastTxHash(data.hash);
+
+  appendWalletTx({
+    id: `${Date.now()}-${data.hash}`,
+    walletAddress: data.from || walletAddress,
+    txHash: data.hash,
+    token: "USDT",
+    amount: payoutAmount.toString(),
+    to: recipient.trim(),
+    status: "pending",
+    createdAt: new Date().toISOString(),
+  });
+
+  setSuccess(
+    feeAmount > 0
+      ? `USDT transaction sent successfully. Recipient received ${payoutAmount.toFixed(
+          6
+        )} ${usdtSymbol}. Fee calculated: ${feeAmount.toFixed(6)} ${usdtSymbol}.`
+      : `${usdtSymbol} sent successfully.`
   );
-
-  const tokenBalance = await usdtContract.balanceOf(fromAddress);
-  if (tokenBalance < totalUnits) {
-    setError("Insufficient USDT balance.");
-    return;
-  }
-
-  const gasBalance = await activeProvider.getBalance(fromAddress);
-  const feeData = await activeProvider.getFeeData();
-
-  const gasPriceForCheck =
-    feeData.maxFeePerGas ??
-    feeData.gasPrice ??
-    ethers.parseUnits("10", "gwei");
-
-  const estimatedGasPerTx = 80000n;
-  const txCount = feeUnits > 0n ? 2n : 1n;
-  const gasBufferWei = gasPriceForCheck * estimatedGasPerTx * txCount;
-
-  if (gasBalance < gasBufferWei) {
-    setError("Insufficient ETH balance for USDT network gas.");
-    return;
-  }
-
-  let feeTxHash = "";
-
-  if (feeUnits > 0n) {
-    const feeTx = await usdtContract.transfer(FEE_WALLET, feeUnits);
-    feeTxHash = feeTx.hash;
-    await feeTx.wait();
-
-    appendWalletTx({
-      id: `${Date.now()}-${feeTx.hash}-fee`,
-      walletAddress: fromAddress,
-      txHash: feeTx.hash,
-      token: "USDT",
-      amount: feeAmount.toString(),
-      to: FEE_WALLET,
-      status: "pending",
-      createdAt: new Date().toISOString(),
-    });
-  }
-
-        const sendTx = await usdtContract.transfer(recipient.trim(), payoutUnits);
-        setLastTxHash(sendTx.hash);
-
-        appendWalletTx({
-          id: `${Date.now()}-${sendTx.hash}`,
-          walletAddress: fromAddress,
-          txHash: sendTx.hash,
-          token: "USDT",
-          amount: payoutAmount.toString(),
-          to: recipient.trim(),
-          status: "pending",
-          createdAt: new Date().toISOString(),
-        });
-
-        const receipt = await sendTx.wait();
-
-        appendWalletTx({
-          id: `${Date.now()}-${sendTx.hash}-final`,
-          walletAddress: fromAddress,
-          txHash: sendTx.hash,
-          token: "USDT",
-          amount: payoutAmount.toString(),
-          to: recipient.trim(),
-          status: receipt?.status === 1 ? "confirmed" : "failed",
-          createdAt: new Date().toISOString(),
-        });
-
-        setSuccess(
-          feeAmount > 0
-            ? `USDT transaction sent successfully. Recipient received ${payoutAmount.toFixed(
-                6
-              )} ${usdtSymbol}. Fee sent to fee wallet: ${feeAmount.toFixed(6)} ${usdtSymbol}.${feeTxHash ? ` Fee TX: ${feeTxHash}` : ""}`
-            : `${usdtSymbol} sent successfully.`
-        );
-      } else {
+} else {
         const totalAmount = numericAmount;
         const rawFeeAmount = (totalAmount * FEE_PERCENT) / 100;
         const feeAmount = rawFeeAmount >= MIN_FEE_ETH ? rawFeeAmount : 0;
