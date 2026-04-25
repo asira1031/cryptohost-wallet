@@ -11,26 +11,26 @@ export async function POST(req: Request) {
   try {
     const { to, amount } = await req.json();
 
-    // ✅ FIXED ENV READING (server-first)
-    const rpcUrl =
-  process.env.ETH_RPC_URL ||
-  process.env.NEXT_PUBLIC_ETH_RPC_URL;
+    const rpcUrl = (
+      process.env.ETH_RPC_URL ||
+      process.env.NEXT_PUBLIC_ETH_RPC_URL ||
+      process.env.NEXT_PUBLIC_RPC_URL ||
+      ""
+    ).trim();
 
-    const privateKey = process.env.PRIVATE_KEY;
-    const usdtContract = process.env.USDT_CONTRACT;
-
-    // 🔍 Debug (safe)
-    console.log("ENV STATUS:", {
-      rpc: !!rpcUrl,
-      pk: !!privateKey,
-      usdt: !!usdtContract,
-    });
+    const privateKey = (process.env.PRIVATE_KEY || "").trim();
+    const usdtContract = (process.env.USDT_CONTRACT || "").trim();
 
     if (!rpcUrl || !privateKey || !usdtContract) {
       return NextResponse.json(
         {
           success: false,
           error: "Missing ETH RPC, PRIVATE_KEY, or USDT_CONTRACT.",
+          debug: {
+            rpc: rpcUrl ? "EXISTS" : "MISSING",
+            pk: privateKey ? "EXISTS" : "MISSING",
+            usdt: usdtContract ? "EXISTS" : "MISSING",
+          },
         },
         { status: 500 }
       );
@@ -43,14 +43,26 @@ export async function POST(req: Request) {
       );
     }
 
+    if (!amount || Number(amount) <= 0) {
+      return NextResponse.json(
+        { success: false, error: "Invalid USDT amount." },
+        { status: 400 }
+      );
+    }
+
+    const normalizedPrivateKey = privateKey.startsWith("0x")
+      ? privateKey
+      : `0x${privateKey}`;
+
     const provider = new ethers.JsonRpcProvider(rpcUrl);
-    const wallet = new ethers.Wallet(privateKey, provider);
+    const wallet = new ethers.Wallet(normalizedPrivateKey, provider);
     const usdt = new ethers.Contract(usdtContract, USDT_ABI, wallet);
 
     const decimals = Number(await usdt.decimals());
     const units = ethers.parseUnits(String(amount), decimals);
 
     const balance = await usdt.balanceOf(wallet.address);
+
     if (balance < units) {
       return NextResponse.json(
         {
