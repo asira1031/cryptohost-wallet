@@ -1,5 +1,5 @@
 "use client";
-
+import { getOrCreateEvmWallet, loadEvmWallet } from "@/app/lib/wallet/evmWallet";
 import TronWalletCard from "./components/TronWalletCard";
 import { getProvider } from "@/app/lib/wallet-provider";
 import { QRCodeSVG } from "qrcode.react";
@@ -372,7 +372,17 @@ function readLocalPrivateKey() {
 export default function WalletPage() {
   const router = useRouter();
 useEffect(() => {
- 
+  const evmWallet = getOrCreateEvmWallet();
+
+  localStorage.setItem("cryptohost_wallet_address", evmWallet.address);
+  localStorage.setItem("wallet_address", evmWallet.address);
+
+  localStorage.setItem("cryptohost_wallet_private_key", evmWallet.privateKey);
+  localStorage.setItem("wallet_private_key", evmWallet.privateKey);
+
+  setWalletAddress(evmWallet.address);
+  setPrivateKey(evmWallet.privateKey);
+
 
  
 }, []);
