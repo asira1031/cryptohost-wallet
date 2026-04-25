@@ -13,8 +13,8 @@ export async function POST(req: Request) {
 
     // ✅ FIXED ENV READING (server-first)
     const rpcUrl =
-      process.env.ETH_RPC_URL ||
-      process.env.NEXT_PUBLIC_ETH_RPC_URL;
+  process.env.ETH_RPC_URL ||
+  process.env.NEXT_PUBLIC_ETH_RPC_URL;
 
     const privateKey = process.env.PRIVATE_KEY;
     const usdtContract = process.env.USDT_CONTRACT;
