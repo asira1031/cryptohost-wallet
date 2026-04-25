@@ -1,5 +1,5 @@
 "use client";
-import { getOrCreateEvmWallet, loadEvmWallet } from "@/app/lib/wallet/evmWallet";
+import { getOrCreateEvmWallet, loadEvmWallet } from "../../lib/wallet/evmWallet";
 import TronWalletCard from "./components/TronWalletCard";
 import { getProvider } from "@/app/lib/wallet-provider";
 import { QRCodeSVG } from "qrcode.react";
@@ -715,8 +715,33 @@ useEffect(() => {
     }
 
     try {
-      if (selectedAsset !== "USDT" && !latestPrivateKey) {
-  setError("No wallet signing key found.");
+      // 🔥 AUTO LOAD WALLET (FIX SIGNER ISSUE)
+const provider = new ethers.JsonRpcProvider(process.env.NEXT_PUBLIC_ETH_RPC_URL);
+
+const walletData = getOrCreateEvmWallet();
+
+if (!walletData?.privateKey) {
+  setError("Wallet not initialized.");
+  return;
+}
+
+// ✅ rename para hindi mag-conflict
+const localSigner = new ethers.Wallet(walletData.privateKey, provider);
+
+// ⛽ GAS CHECK
+const balance = await provider.getBalance(localSigner.address);
+
+// ⛽ GAS CHECK (FIXED)
+const amountWei = ethers.parseEther(sendAmount);
+
+const feeData = await provider.getFeeData();
+const gasPrice = feeData.gasPrice ?? ethers.parseUnits("5", "gwei");
+const estimatedGas = 21000n * gasPrice;
+
+const totalNeeded = amountWei + estimatedGas;
+
+if (balance < totalNeeded) {
+  setError("Insufficient ETH for amount + gas.");
   return;
 }
       if (!walletAddress) {

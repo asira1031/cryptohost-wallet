@@ -2,12 +2,15 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { loadEvmWallet } from "@/app/lib/wallet/evmWallet";
+
+// ✅ FIXED IMPORT (relative path - working)
+import { getOrCreateEvmWallet, loadEvmWallet } from "../../lib/wallet/evmWallet";
+// ✅ FIXED IMPORT (relative path)
 import {
   getEncryptedWalletAddress,
   hasEncryptedWallet,
   unlockEncryptedWallet,
-} from "@/app/lib/wallet-security";
+} from "../../lib/wallet-security";
 
 type SecurityMethod = "email" | "phone" | "biometric";
 
