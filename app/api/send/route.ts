@@ -13,7 +13,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL;
+   const rpcUrl =
+  process.env.NEXT_PUBLIC_ETH_RPC_URL ||
+  process.env.NEXT_PUBLIC_RPC_URL;
     const privateKey = process.env.PRIVATE_KEY;
 
     if (!rpcUrl) {
