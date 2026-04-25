@@ -20,7 +20,7 @@ export async function POST(req: Request) {
 
     if (!rawPrivateKey) {
       return NextResponse.json(
-        { success: false, error: "PRIVATE_KEY missing in Vercel environment." },
+        { success: false, error: "PRIVATE_KEY missing." },
         { status: 500 }
       );
     }
@@ -32,6 +32,13 @@ export async function POST(req: Request) {
     if (!ethers.isAddress(to)) {
       return NextResponse.json(
         { success: false, error: "Invalid recipient address." },
+        { status: 400 }
+      );
+    }
+
+    if (!amount || Number(amount) <= 0) {
+      return NextResponse.json(
+        { success: false, error: "Invalid USDT amount." },
         { status: 400 }
       );
     }
@@ -52,11 +59,7 @@ export async function POST(req: Request) {
 
     if (balance < units) {
       return NextResponse.json(
-        {
-          success: false,
-          error: `Insufficient USDT balance. API sender wallet: ${wallet.address}`,
-          sender: wallet.address,
-        },
+        { success: false, error: "Insufficient USDT balance." },
         { status: 400 }
       );
     }
