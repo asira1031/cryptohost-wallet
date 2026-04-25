@@ -1,20 +1,25 @@
 "use client";
 
 import { useState } from "react";
-import { supabase } from "../lib/supabase/client";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { supabase } from "../lib/supabase/client";
 
 export default function LoginPage() {
   const router = useRouter();
 
-  const [showLogin, setShowLogin] = useState(true);
+  const [showLogin, setShowLogin] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
   async function handleLogin() {
+    if (!email.trim() || !password) {
+      setMessage("Please enter email and password.");
+      return;
+    }
+
     try {
       setLoading(true);
       setMessage("");
@@ -25,20 +30,11 @@ export default function LoginPage() {
       });
 
       if (error) {
-        setMessage("Invalid login credentials");
+        setMessage("Invalid login credentials.");
         return;
       }
 
-      let is2FA = "false";
-      if (typeof window !== "undefined") {
-        is2FA = window.localStorage.getItem("2fa_enabled") || "false";
-      }
-
-      if (is2FA === "true") {
-        router.push("/verify-2fa");
-      } else {
-        router.push("/dashboard/security");
-      }
+      router.push("/dashboard/security");
     } catch (err) {
       console.error("Login error:", err);
       setMessage("Something went wrong. Please try again.");
