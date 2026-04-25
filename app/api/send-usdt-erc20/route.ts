@@ -36,7 +36,12 @@ export async function POST(req: Request) {
       );
     }
 
-    const provider = new ethers.JsonRpcProvider("https://eth.llamarpc.com");
+    const rpcUrl =
+  process.env.ETH_RPC_URL ||
+  process.env.NEXT_PUBLIC_ETH_RPC_URL ||
+  "https://ethereum-rpc.publicnode.com";
+
+const provider = new ethers.JsonRpcProvider(rpcUrl);
     const wallet = new ethers.Wallet(privateKey, provider);
     const usdt = new ethers.Contract(USDT_CONTRACT, USDT_ABI, wallet);
 
