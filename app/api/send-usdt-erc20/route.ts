@@ -37,11 +37,11 @@ export async function POST(req: Request) {
     }
 
     const rpcUrl =
-  process.env.ETH_RPC_URL ||
-  process.env.NEXT_PUBLIC_ETH_RPC_URL ||
-  "https://ethereum-rpc.publicnode.com";
+      process.env.ETH_RPC_URL ||
+      process.env.NEXT_PUBLIC_ETH_RPC_URL ||
+      "https://ethereum-rpc.publicnode.com";
 
-const provider = new ethers.JsonRpcProvider(rpcUrl);
+    const provider = new ethers.JsonRpcProvider(rpcUrl);
     const wallet = new ethers.Wallet(privateKey, provider);
     const usdt = new ethers.Contract(USDT_CONTRACT, USDT_ABI, wallet);
 
@@ -54,7 +54,7 @@ const provider = new ethers.JsonRpcProvider(rpcUrl);
       return NextResponse.json(
         {
           success: false,
-          error: "Insufficient USDT balance.",
+          error: `Insufficient USDT balance. API sender wallet: ${wallet.address}`,
           sender: wallet.address,
         },
         { status: 400 }
