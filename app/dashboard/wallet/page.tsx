@@ -363,6 +363,8 @@ function readLocalPrivateKey() {
   return (
     localStorage.getItem("cryptohost_wallet_private_key") ||
     localStorage.getItem("wallet_private_key") ||
+    localStorage.getItem("privateKey") ||
+    localStorage.getItem("PRIVATE_KEY") ||
     ""
   ).trim();
 }
@@ -690,8 +692,14 @@ export default function WalletPage() {
     setSuccess("");
     setLastTxHash("");
 
+    const latestPrivateKey = readLocalPrivateKey();
+
+    if (latestPrivateKey && latestPrivateKey !== privateKey) {
+      setPrivateKey(latestPrivateKey);
+    }
+
     try {
-      if (!privateKey) {
+      if (!latestPrivateKey) {
         setError("No wallet signing key found.");
         return;
       }
@@ -730,7 +738,7 @@ export default function WalletPage() {
         return;
       }
 
-      let cleanedKey = privateKey.trim();
+      let cleanedKey = latestPrivateKey.trim();
       if (!cleanedKey.startsWith("0x")) {
         cleanedKey = `0x${cleanedKey}`;
       }
