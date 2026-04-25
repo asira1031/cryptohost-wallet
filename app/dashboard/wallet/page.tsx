@@ -699,11 +699,10 @@ export default function WalletPage() {
     }
 
     try {
-      if (!latestPrivateKey) {
-        setError("No wallet signing key found.");
-        return;
-      }
-
+      if (selectedAsset !== "USDT" && !latestPrivateKey) {
+  setError("No wallet signing key found.");
+  return;
+}
       if (!walletAddress) {
         setError("No wallet loaded.");
         return;
@@ -757,11 +756,17 @@ export default function WalletPage() {
         return;
       }
 
-      const signer = new ethers.Wallet(cleanedKey, activeProvider);
-      const fromAddress = signer.address;
+     let signer: ethers.Wallet | null = null;
+let fromAddress = walletAddress;
+let chainId = 1;
 
-      const network = await activeProvider.getNetwork();
-      const chainId = Number(network.chainId);
+if (selectedAsset !== "USDT") {
+  signer = new ethers.Wallet(cleanedKey, activeProvider);
+  fromAddress = signer.address;
+
+  const network = await activeProvider.getNetwork();
+  chainId = Number(network.chainId);
+}
 
       if (selectedAsset === "BNB" && chainId !== 56) {
         setError("BNB sending requires a BNB Chain RPC/provider.");
@@ -821,6 +826,10 @@ if (selectedAsset === "USDT") {
       : `${usdtSymbol} sent successfully.`
   );
 } else {
+  if (!signer) {
+  setError("Wallet signer not available.");
+  return;
+}
         const totalAmount = numericAmount;
         const rawFeeAmount = (totalAmount * FEE_PERCENT) / 100;
         const feeAmount = rawFeeAmount >= MIN_FEE_ETH ? rawFeeAmount : 0;
