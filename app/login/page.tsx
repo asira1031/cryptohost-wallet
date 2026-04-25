@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { supabase } from "../lib/supabase/client";
 
 export default function LoginPage() {
@@ -105,13 +104,21 @@ export default function LoginPage() {
           {message ? <p style={messageStyle}>{message}</p> : null}
 
           <div style={{ marginTop: 18, display: "grid", gap: 8 }}>
-            <Link href="/register" style={linkStyle}>
+            <button
+              type="button"
+              onClick={() => router.push("/register")}
+              style={linkButtonStyle}
+            >
               Create account
-            </Link>
+            </button>
 
-            <Link href="/forgot-password" style={linkStyle}>
+            <button
+              type="button"
+              onClick={() => router.push("/forgot-password")}
+              style={linkButtonStyle}
+            >
               Forgot password?
-            </Link>
+            </button>
           </div>
         </div>
       )}
@@ -222,10 +229,14 @@ const buttonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const linkStyle: React.CSSProperties = {
+const linkButtonStyle: React.CSSProperties = {
+  background: "transparent",
+  border: "none",
   color: "#93c5fd",
-  textDecoration: "none",
+  cursor: "pointer",
   fontSize: 14,
+  textAlign: "left",
+  padding: 0,
 };
 
 const messageStyle: React.CSSProperties = {
