@@ -11,16 +11,27 @@ export async function POST(req: Request) {
   try {
     const { to, amount } = await req.json();
 
+    // ✅ FIXED ENV READING (server-first)
     const rpcUrl =
-      process.env.NEXT_PUBLIC_ETH_RPC_URL ||
-      process.env.NEXT_PUBLIC_RPC_URL;
+      process.env.ETH_RPC_URL ||
+      process.env.NEXT_PUBLIC_ETH_RPC_URL;
 
     const privateKey = process.env.PRIVATE_KEY;
     const usdtContract = process.env.USDT_CONTRACT;
 
+    // 🔍 Debug (safe)
+    console.log("ENV STATUS:", {
+      rpc: !!rpcUrl,
+      pk: !!privateKey,
+      usdt: !!usdtContract,
+    });
+
     if (!rpcUrl || !privateKey || !usdtContract) {
       return NextResponse.json(
-        { success: false, error: "Missing ETH RPC, PRIVATE_KEY, or USDT_CONTRACT." },
+        {
+          success: false,
+          error: "Missing ETH RPC, PRIVATE_KEY, or USDT_CONTRACT.",
+        },
         { status: 500 }
       );
     }
@@ -64,7 +75,10 @@ export async function POST(req: Request) {
     });
   } catch (error: any) {
     return NextResponse.json(
-      { success: false, error: error?.message || "USDT send failed." },
+      {
+        success: false,
+        error: error?.message || "USDT send failed.",
+      },
       { status: 500 }
     );
   }
