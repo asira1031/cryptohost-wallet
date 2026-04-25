@@ -72,7 +72,7 @@ export default function LoginPage() {
           </button>
 
           <h1 style={titleStyle}>CryptoHost Wallet Login</h1>
-          <p style={subStyle}>Access your secure wallet dashboard.</p>
+          <p style={subStyle}>Login to access your wallet dashboard.</p>
 
           <input
             type="email"
@@ -103,23 +103,21 @@ export default function LoginPage() {
 
           {message ? <p style={messageStyle}>{message}</p> : null}
 
-          <div style={{ marginTop: 18, display: "grid", gap: 8 }}>
-            <button
-              type="button"
-              onClick={() => router.push("/register")}
-              style={linkButtonStyle}
-            >
-              Create account
-            </button>
+          <button
+            type="button"
+            onClick={() => router.push("/register")}
+            style={signupButtonStyle}
+          >
+            Sign Up / Create Account
+          </button>
 
-            <button
-              type="button"
-              onClick={() => router.push("/forgot-password")}
-              style={linkButtonStyle}
-            >
-              Forgot password?
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => router.push("/forgot-password")}
+            style={forgotButtonStyle}
+          >
+            Forgot password?
+          </button>
         </div>
       )}
     </main>
@@ -229,14 +227,26 @@ const buttonStyle: React.CSSProperties = {
   cursor: "pointer",
 };
 
-const linkButtonStyle: React.CSSProperties = {
+const signupButtonStyle: React.CSSProperties = {
+  width: "100%",
+  marginTop: 18,
+  padding: "11px 14px",
+  borderRadius: 12,
+  border: "1px solid rgba(147,197,253,0.45)",
+  background: "rgba(37,99,235,0.25)",
+  color: "#bfdbfe",
+  fontWeight: 700,
+  cursor: "pointer",
+};
+
+const forgotButtonStyle: React.CSSProperties = {
+  width: "100%",
+  marginTop: 10,
   background: "transparent",
   border: "none",
   color: "#93c5fd",
   cursor: "pointer",
   fontSize: 14,
-  textAlign: "left",
-  padding: 0,
 };
 
 const messageStyle: React.CSSProperties = {
