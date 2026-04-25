@@ -372,15 +372,9 @@ function readLocalPrivateKey() {
 export default function WalletPage() {
   const router = useRouter();
 useEffect(() => {
-  localStorage.setItem(
-    "wallet_private_key",
-    "0xYOUR_PRIVATE_KEY_HERE"
-  );
+ 
 
-  const savedPin = localStorage.getItem("ch_pin");
-  if (!savedPin) {
-    router.push("/");
-  }
+ 
 }, []);
   
   const [lang, setLang] = useState("en");

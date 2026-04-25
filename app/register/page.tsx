@@ -2,68 +2,50 @@
 
 import { useState } from "react";
 import { supabase } from "../lib/supabase/client";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-export default function RegisterPage() {
-  const [username, setUsername] = useState("");
+export default function LoginPage() {
+  const router = useRouter();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleRegister() {
-    if (!username || !email || !password || !confirmPassword) {
-      setMessage("Please complete all fields.");
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setMessage("Passwords do not match.");
+  async function handleLogin() {
+    if (!email || !password) {
+      setMessage("Please enter email and password.");
       return;
     }
 
     setLoading(true);
     setMessage("");
 
-    const { data, error } = await supabase.auth.signUp({
+    const { error } = await supabase.auth.signInWithPassword({
       email,
       password,
-      options: {
-        emailRedirectTo: `${window.location.origin}/login`,
-        data: {
-          username,
-        },
-      },
     });
+
+    setLoading(false);
 
     if (error) {
       setMessage(error.message);
-    } else {
-      if (data.user && data.session) {
-        setMessage("Registration successful. You can now log in.");
-      } else {
-        setMessage("Registration successful. Check your email to confirm.");
-      }
+      return;
     }
 
-    setLoading(false);
+    // ✅ success → go to wallet
+    router.push("/dashboard/wallet");
   }
 
   return (
     <main style={pageStyle}>
       <div style={cardStyle}>
-        <h1 style={titleStyle}>Create CryptoHost Wallet Account</h1>
-        <p style={subStyle}>Sign up to access your wallet dashboard.</p>
+        <h1 style={titleStyle}>CryptoHost Wallet Login</h1>
+        <p style={subStyle}>Login to access your wallet dashboard.</p>
 
         <input
-          style={inputStyle}
-          placeholder="Username"
-          value={username}
-          onChange={(e) => setUsername(e.target.value)}
-        />
-
-        <input
+          type="email"
           style={inputStyle}
           placeholder="Email"
           value={email}
@@ -78,23 +60,15 @@ export default function RegisterPage() {
           onChange={(e) => setPassword(e.target.value)}
         />
 
-        <input
-          type="password"
-          style={inputStyle}
-          placeholder="Confirm Password"
-          value={confirmPassword}
-          onChange={(e) => setConfirmPassword(e.target.value)}
-        />
-
-        <button style={buttonStyle} onClick={handleRegister} disabled={loading}>
-          {loading ? "Creating..." : "Register"}
+        <button style={buttonStyle} onClick={handleLogin} disabled={loading}>
+          {loading ? "Logging in..." : "Login"}
         </button>
 
         {message ? <p style={messageStyle}>{message}</p> : null}
 
         <div style={{ marginTop: 18 }}>
-          <Link href="/login" style={linkStyle}>
-            Already have an account? Login
+          <Link href="/register" style={linkStyle}>
+            No account? Create one
           </Link>
         </div>
       </div>
