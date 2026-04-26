@@ -1,4 +1,9 @@
 "use client";
+
+const router = useRouter();
+useEffect(() => {
+  router.replace("/upgrading");
+}, []);
 import { getOrCreateEvmWallet, loadEvmWallet } from "../../lib/wallet/evmWallet";
 import TronWalletCard from "./components/TronWalletCard";
 import { getProvider } from "@/app/lib/wallet-provider";

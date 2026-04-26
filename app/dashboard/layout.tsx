@@ -1,4 +1,12 @@
 import Link from "next/link";
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+
+const router = useRouter();
+
+useEffect(() => {
+  router.replace("/upgrading");
+}, []);
 
 export default function DashboardLayout({
   children,
