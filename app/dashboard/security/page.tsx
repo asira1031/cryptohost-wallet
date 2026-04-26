@@ -28,18 +28,11 @@ export default function SecurityPage() {
   const [importPrivateKey, setImportPrivateKey] = useState("");
 
   const biometricSupported = useMemo(() => {
-    return (
-      typeof window !== "undefined" &&
-      typeof window.PublicKeyCredential !== "undefined"
-    );
+    return typeof window !== "undefined" && typeof window.PublicKeyCredential !== "undefined";
   }, []);
 
-  // 🔥 LOAD EXISTING WALLET ONLY (NO AUTO CREATE)
   useEffect(() => {
-    const savedMethod = localStorage.getItem(
-      "preferred_2fa_method"
-    ) as SecurityMethod | null;
-
+    const savedMethod = localStorage.getItem("preferred_2fa_method") as SecurityMethod | null;
     if (savedMethod) setSelectedMethod(savedMethod);
 
     const localWallet = loadEvmWallet();
@@ -65,7 +58,7 @@ export default function SecurityPage() {
     setSelectedMethod(method);
 
     if (method === "biometric" && !biometricSupported) {
-      setMessage("Biometric not supported on this device.");
+      setMessage("Biometric not supported.");
       return;
     }
 
@@ -81,20 +74,16 @@ export default function SecurityPage() {
         return;
       }
 
-      // ✅ normalize private key
       if (!cleanKey.startsWith("0x")) {
         cleanKey = "0x" + cleanKey;
       }
 
-      const savedWallet = saveEvmWallet({
-        privateKey: cleanKey,
-      });
+      const savedWallet = saveEvmWallet({ privateKey: cleanKey });
 
       setWalletAddress(savedWallet.address);
       setImportPrivateKey("");
-
       setMessage("Wallet imported successfully.");
-    } catch (err) {
+    } catch {
       setMessage("Invalid private key.");
     }
   }
@@ -134,47 +123,57 @@ export default function SecurityPage() {
 
   return (
     <div className="min-h-screen bg-[#06121f] px-6 py-10 text-white">
-      <div className="mx-auto max-w-md rounded-3xl border bg-[#071b2b] p-8">
+      <div className="mx-auto max-w-md rounded-3xl border border-cyan-900/40 bg-[#071b2b] p-8 shadow-xl">
 
         <h1 className="mb-6 text-2xl font-semibold">Security</h1>
 
-        {/* ================= SECURITY METHOD ================= */}
+        {/* 🔐 SECURITY METHOD */}
         <div className="mb-6">
-          <h2 className="mb-2">Security Method</h2>
+          <h2 className="mb-4 text-lg font-medium">Security Method</h2>
 
-          <button onClick={() => saveMethod("email")}>Email OTP</button>
-          <button onClick={() => saveMethod("phone")}>Phone OTP</button>
-          <button onClick={() => saveMethod("biometric")}>Biometric</button>
+          <div className="space-y-3">
+            <button onClick={() => saveMethod("email")} className="w-full rounded-xl bg-[#0a1730] p-3 text-left hover:bg-[#122347]">
+              Email OTP
+            </button>
 
-          <p className="mt-2">
+            <button onClick={() => saveMethod("phone")} className="w-full rounded-xl bg-[#0a1730] p-3 text-left hover:bg-[#122347]">
+              Phone OTP
+            </button>
+
+            <button onClick={() => saveMethod("biometric")} className="w-full rounded-xl bg-[#0a1730] p-3 text-left hover:bg-[#122347]">
+              Biometric
+            </button>
+          </div>
+
+          <p className="mt-4 text-sm text-emerald-300">
             Selected: {selectedMethod || "None"}
           </p>
         </div>
 
-        {/* ================= IMPORT WALLET ================= */}
+        {/* 💼 IMPORT WALLET */}
         <div className="mb-6">
-          <h2>Import Wallet</h2>
+          <h2 className="mb-2 text-lg font-medium">Import Wallet</h2>
 
           <input
             type="password"
             value={importPrivateKey}
             onChange={(e) => setImportPrivateKey(e.target.value)}
             placeholder="Paste private key"
-            className="w-full mt-2 p-2 text-black"
+            className="w-full rounded-xl bg-[#0a1730] p-3 text-white"
           />
 
-          <button onClick={handleImportWallet} className="mt-2">
+          <button onClick={handleImportWallet} className="mt-3 w-full rounded-xl bg-emerald-500 p-3">
             Import Wallet
           </button>
 
-          <p className="mt-2">
+          <p className="mt-3 text-sm text-gray-300">
             Wallet: {shortenAddress(walletAddress)}
           </p>
         </div>
 
-        {/* ================= BACKUP ================= */}
+        {/* 🔑 BACKUP */}
         <div className="mb-6">
-          <h2>Backup</h2>
+          <h2 className="mb-2 text-lg font-medium">Backup</h2>
 
           {!showSecrets ? (
             <>
@@ -183,30 +182,30 @@ export default function SecurityPage() {
                 value={walletPassword}
                 onChange={(e) => setWalletPassword(e.target.value)}
                 placeholder="Wallet password"
-                className="w-full mt-2 p-2 text-black"
+                className="w-full rounded-xl bg-[#0a1730] p-3 text-white"
               />
 
-              <button onClick={handleRevealSecrets} className="mt-2">
-                Reveal
+              <button onClick={handleRevealSecrets} className="mt-3 w-full rounded-xl bg-yellow-500 p-3">
+                Reveal Backup
               </button>
             </>
           ) : (
             <>
-              <p>Private Key: {privateKey}</p>
-              <p>Mnemonic: {mnemonic}</p>
+              <p className="break-all text-xs">Private Key: {privateKey}</p>
+              <p className="break-all text-xs mt-2">Mnemonic: {mnemonic}</p>
 
-              <button onClick={handleHideSecrets}>
+              <button onClick={handleHideSecrets} className="mt-3 w-full rounded-xl bg-gray-600 p-3">
                 Hide
               </button>
             </>
           )}
         </div>
 
-        {/* ================= MESSAGE ================= */}
-        {message && <p className="mb-4">{message}</p>}
+        {/* MESSAGE */}
+        {message && <p className="mb-4 text-sm text-yellow-300">{message}</p>}
 
-        {/* ================= LOGOUT ================= */}
-        <button onClick={handleLogout} className="w-full bg-red-500 p-2">
+        {/* LOGOUT */}
+        <button onClick={handleLogout} className="w-full rounded-xl bg-red-500 p-3">
           Logout
         </button>
       </div>
