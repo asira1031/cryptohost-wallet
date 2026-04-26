@@ -947,7 +947,7 @@ export default function WalletPage() {
               <input
                 value={otpCode}
                 onChange={(e) => setOtpCode(e.target.value)}
-                placeholder="Enter OTP"
+                placeholder="Enter verification code"
                 className="w-full rounded-2xl border border-white/10 bg-[#06131b] px-4 py-3 text-sm text-white outline-none placeholder:text-white/25"
               />
             ) : null}
