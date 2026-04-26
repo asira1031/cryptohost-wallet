@@ -741,14 +741,16 @@ const estimatedGas = 21000n * gasPrice;
 const totalNeeded = amountWei + estimatedGas;
 
 if (balance < totalNeeded) {
-  setError("Insufficient ETH for amount + gas.");
+  setError(
+    `Insufficient ETH. Signer: ${localSigner.address}. Balance: ${ethers.formatEther(balance)} ETH.`
+  );
   return;
 }
-      if (!walletAddress) {
-        setError("No wallet loaded.");
-        return;
-      }
 
+if (!walletAddress) {
+  setError("No wallet loaded.");
+  return;
+}
       if (!otpVerified) {
         setError("Verify OTP first.");
         return;
