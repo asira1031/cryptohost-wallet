@@ -1,4 +1,4 @@
-"use client";  
+"use client";
 
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase/client";
@@ -31,6 +31,16 @@ export default function ResetPasswordPage() {
   async function handleUpdatePassword() {
     if (!password || !confirmPassword) {
       setMessage("Please complete both password fields.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setMessage("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+      setMessage("Password must include letters and numbers.");
       return;
     }
 
