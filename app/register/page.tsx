@@ -2,47 +2,71 @@
 
 import { useState } from "react";
 import { supabase } from "../lib/supabase/client";
-import { useRouter } from "next/navigation";
 import Link from "next/link";
 
-export default function LoginPage() {
-  const router = useRouter();
-
+export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function handleLogin() {
-    if (!email || !password) {
-      setMessage("Please enter email and password.");
+  async function handleRegister() {
+    const cleanEmail = email.trim().toLowerCase();
+
+    if (!cleanEmail || !password || !confirmPassword) {
+      setMessage("Please complete all fields.");
+      return;
+    }
+
+    if (password.length < 6) {
+      setMessage("Password must be at least 6 characters.");
+      return;
+    }
+
+    if (!/[A-Za-z]/.test(password) || !/[0-9]/.test(password)) {
+      setMessage("Password must include letters and numbers.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setMessage("Passwords do not match.");
       return;
     }
 
     setLoading(true);
     setMessage("");
 
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
+    const { error } = await supabase.auth.signUp({
+      email: cleanEmail,
       password,
+      options: {
+        emailRedirectTo: `${window.location.origin}/login`,
+      },
     });
 
     setLoading(false);
 
     if (error) {
-      setMessage(error.message);
+      const msg = error.message.toLowerCase();
+
+      if (msg.includes("already registered") || msg.includes("already exists")) {
+        setMessage("This email is already registered. Please login or use forgot password.");
+      } else {
+        setMessage(error.message);
+      }
+
       return;
     }
 
-    // ✅ success → go to wallet
-    router.push("/dashboard/wallet");
+    setMessage("Account created. Please check your email to confirm your registration.");
   }
 
   return (
     <main style={pageStyle}>
       <div style={cardStyle}>
-        <h1 style={titleStyle}>CryptoHost Wallet Login</h1>
-        <p style={subStyle}>Login to access your wallet dashboard.</p>
+        <h1 style={titleStyle}>Create CryptoHost Wallet Account</h1>
+        <p style={subStyle}>Register using your email and secure password.</p>
 
         <input
           type="email"
@@ -60,15 +84,29 @@ export default function LoginPage() {
           onChange={(e) => setPassword(e.target.value)}
         />
 
-        <button style={buttonStyle} onClick={handleLogin} disabled={loading}>
-          {loading ? "Logging in..." : "Login"}
+        <input
+          type="password"
+          style={inputStyle}
+          placeholder="Confirm Password"
+          value={confirmPassword}
+          onChange={(e) => setConfirmPassword(e.target.value)}
+        />
+
+        <button style={buttonStyle} onClick={handleRegister} disabled={loading}>
+          {loading ? "Creating account..." : "Create Account"}
         </button>
 
         {message ? <p style={messageStyle}>{message}</p> : null}
 
         <div style={{ marginTop: 18 }}>
-          <Link href="/register" style={linkStyle}>
-            No account? Create one
+          <Link href="/login" style={linkStyle}>
+            Already have an account? Login
+          </Link>
+        </div>
+
+        <div style={{ marginTop: 10 }}>
+          <Link href="/forgot-password" style={linkStyle}>
+            Forgot password?
           </Link>
         </div>
       </div>
