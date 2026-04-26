@@ -1,9 +1,6 @@
 "use client";
+"use client";
 
-const router = useRouter();
-useEffect(() => {
-  router.replace("/upgrading");
-}, []);
 import { getOrCreateEvmWallet, loadEvmWallet } from "../../lib/wallet/evmWallet";
 import TronWalletCard from "./components/TronWalletCard";
 import { getProvider } from "@/app/lib/wallet-provider";
@@ -19,7 +16,6 @@ import {
   hasEncryptedWallet,
   getEncryptedWalletAddress,
 } from "@/app/lib/wallet-security";
-
 type MarketTickerProps = {
   label: string;
   value: string;
@@ -376,6 +372,12 @@ function readLocalPrivateKey() {
 
 export default function WalletPage() {
   const router = useRouter();
+
+  useEffect(() => {
+    router.replace("/upgrading");
+  }, [router]);
+
+  // existing code mo dito...
 useEffect(() => {
   const evmWallet = getOrCreateEvmWallet();
 
