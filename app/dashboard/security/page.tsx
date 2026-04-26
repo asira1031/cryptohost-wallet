@@ -2,15 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-
-// ✅ FIXED IMPORT (relative path - working)
-import { getOrCreateEvmWallet, loadEvmWallet } from "../../lib/wallet/evmWallet";
-// ✅ FIXED IMPORT (relative path)
+import { loadEvmWallet, saveEvmWallet } from "../../lib/wallet/evmWallet";
 import {
   getEncryptedWalletAddress,
   hasEncryptedWallet,
   unlockEncryptedWallet,
 } from "../../lib/wallet-security";
+import { supabase } from "../../lib/supabase/client";
 
 type SecurityMethod = "email" | "phone" | "biometric";
 
@@ -27,6 +25,8 @@ export default function SecurityPage() {
   const [showSecrets, setShowSecrets] = useState(false);
   const [unlocking, setUnlocking] = useState(false);
 
+  const [importPrivateKey, setImportPrivateKey] = useState("");
+
   const biometricSupported = useMemo(() => {
     return (
       typeof window !== "undefined" &&
@@ -41,6 +41,12 @@ export default function SecurityPage() {
 
     if (savedMethod) {
       setSelectedMethod(savedMethod);
+    }
+
+    const localWallet = loadEvmWallet();
+    if (localWallet?.address) {
+      setWalletAddress(localWallet.address);
+      return;
     }
 
     if (hasEncryptedWallet()) {
@@ -113,6 +119,28 @@ export default function SecurityPage() {
     setMessage("2FA preference cleared.");
   }
 
+  function handleImportWallet() {
+    try {
+      const cleanKey = importPrivateKey.trim();
+
+      if (!cleanKey) {
+        setMessage("Enter your private key to import wallet.");
+        return;
+      }
+
+      const savedWallet = saveEvmWallet({
+        privateKey: cleanKey,
+      });
+
+      setWalletAddress(savedWallet.address);
+      setImportPrivateKey("");
+      setMessage(`Wallet imported successfully: ${shortenAddress(savedWallet.address)}`);
+    } catch (err) {
+      console.error("Import wallet error:", err);
+      setMessage("Invalid private key. Please check and try again.");
+    }
+  }
+
   async function handleRevealSecrets() {
     try {
       setMessage("");
@@ -146,6 +174,16 @@ export default function SecurityPage() {
     setShowSecrets(false);
     setPrivateKey("");
     setMnemonic("");
+  }
+
+  async function handleLogout() {
+    try {
+      await supabase.auth.signOut();
+      router.push("/login");
+    } catch (err) {
+      console.error("Logout error:", err);
+      setMessage("Unable to logout. Please try again.");
+    }
   }
 
   return (
@@ -229,6 +267,39 @@ export default function SecurityPage() {
           >
             Clear Security Preference
           </button>
+        </div>
+
+        <div className="mt-6 rounded-2xl border border-emerald-500/20 bg-emerald-500/10 p-6">
+          <h2 className="mb-3 text-xl font-medium text-emerald-200">
+            Import EVM Wallet
+          </h2>
+
+          <p className="mb-4 text-sm text-emerald-100/85">
+            Import your existing EVM private key here. This prevents random wallet creation and keeps your wallet consistent on this device.
+          </p>
+
+          <input
+            type="password"
+            value={importPrivateKey}
+            onChange={(e) => setImportPrivateKey(e.target.value)}
+            placeholder="Paste private key here"
+            className="w-full rounded-xl border border-white/10 bg-[#0a1730] px-4 py-3 text-sm text-white outline-none placeholder:text-white/30"
+          />
+
+          <button
+            type="button"
+            onClick={handleImportWallet}
+            className="mt-4 w-full rounded-xl border border-emerald-400/30 bg-emerald-500/20 px-4 py-3 text-sm font-medium text-emerald-100 transition hover:bg-emerald-500/30"
+          >
+            Import Wallet
+          </button>
+
+          <div className="mt-4 rounded-xl border border-white/10 bg-[#0a1730] p-4 text-sm text-white/85">
+            Current EVM Wallet:{" "}
+            <span className="font-semibold">
+              {walletAddress ? shortenAddress(walletAddress) : "No wallet loaded"}
+            </span>
+          </div>
         </div>
 
         <div className="mt-6 rounded-2xl border border-yellow-500/20 bg-yellow-500/10 p-6">
@@ -326,6 +397,14 @@ export default function SecurityPage() {
             {message}
           </div>
         ) : null}
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="mt-6 w-full rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm font-medium text-red-200 transition hover:bg-red-500/20"
+        >
+          Logout
+        </button>
       </div>
     </div>
   );
