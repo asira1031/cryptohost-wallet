@@ -9,21 +9,22 @@ export default function ForgotPasswordPage() {
   const [message, setMessage] = useState("");
 
   async function handleResetRequest() {
-    setLoading(true);
-    setMessage("");
+    const cleanEmail = email.trim().toLowerCase();
 
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
-    if (!supabaseUrl || !supabaseAnonKey) {
-      setMessage("Supabase environment variables are missing.");
-      setLoading(false);
+    if (!cleanEmail) {
+      setMessage("Please enter your registered email.");
       return;
     }
 
-    const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+    setLoading(true);
+    setMessage("");
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+    const supabase = createBrowserClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+
+    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
       redirectTo: `${window.location.origin}/reset-password`,
     });
 
@@ -40,7 +41,9 @@ export default function ForgotPasswordPage() {
     <main style={pageStyle}>
       <div style={cardStyle}>
         <h1 style={titleStyle}>Forgot Password</h1>
-        <p style={subStyle}>Enter your email to receive a reset link.</p>
+        <p style={subStyle}>
+          Enter your registered email to receive a reset link.
+        </p>
 
         <input
           style={inputStyle}
@@ -57,7 +60,7 @@ export default function ForgotPasswordPage() {
           {loading ? "Sending..." : "Send Reset Link"}
         </button>
 
-        {message ? <p style={messageStyle}>{message}</p> : null}
+        {message && <p style={messageStyle}>{message}</p>}
       </div>
     </main>
   );
