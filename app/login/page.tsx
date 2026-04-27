@@ -33,7 +33,7 @@ export default function LoginPage() {
         return;
       }
 
-     router.push("/upgrading");
+     router.push("/dashboard");
     } catch (err) {
       console.error("Login error:", err);
       setMessage("Something went wrong. Please try again.");

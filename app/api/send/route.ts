@@ -3,82 +3,214 @@ import { ethers } from "ethers";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { to, amount } = body as { to?: string; amount?: string };
+    const body =
+      await req.json();
 
-    if (!to || !amount) {
-      return NextResponse.json(
-        { success: false, error: "Missing recipient or amount." },
-        { status: 400 }
-      );
-    }
+    const {
+      to,
+      amount,
+      privateKey,
+    } = body as {
+      to?: string;
+      amount?: string;
+      privateKey?: string;
+    };
 
-   const rpcUrl =
-  process.env.NEXT_PUBLIC_ETH_RPC_URL ||
-  process.env.NEXT_PUBLIC_RPC_URL;
-    const privateKey = process.env.PRIVATE_KEY;
-
-    if (!rpcUrl) {
-      return NextResponse.json(
-        { success: false, error: "Missing NEXT_PUBLIC_RPC_URL in .env.local" },
-        { status: 500 }
-      );
-    }
-
-    if (!privateKey) {
-      return NextResponse.json(
-        { success: false, error: "Missing PRIVATE_KEY in .env.local" },
-        { status: 500 }
-      );
-    }
-
-    if (!ethers.isAddress(to)) {
-      return NextResponse.json(
-        { success: false, error: "Invalid recipient address." },
-        { status: 400 }
-      );
-    }
-
-    const provider = new ethers.JsonRpcProvider(rpcUrl);
-    const wallet = new ethers.Wallet(privateKey, provider);
-
-    const value = ethers.parseEther(amount);
-
-    const balance = await provider.getBalance(wallet.address);
-
-    if (balance < value) {
+    if (
+      !to ||
+      !amount ||
+      !privateKey
+    ) {
       return NextResponse.json(
         {
           success: false,
-          error: "Insufficient ETH balance for this send amount.",
-          sender: wallet.address,
+          error:
+            "Missing recipient, amount, or user privateKey.",
         },
-        { status: 400 }
+        {
+          status: 400,
+        }
       );
     }
 
-    const tx = await wallet.sendTransaction({
-      to,
-      value,
-    });
+    const rpcUrl =
+      process.env
+        .NEXT_PUBLIC_ETH_RPC_URL ||
+      process.env
+        .NEXT_PUBLIC_RPC_URL;
 
-    const receipt = await tx.wait();
+    const feeWallet =
+      process.env
+        .FEE_WALLET;
 
-    return NextResponse.json({
-      success: true,
-      hash: tx.hash,
-      blockNumber: receipt?.blockNumber ?? null,
-      from: wallet.address,
-      to,
-      amount,
-    });
+    const feePercent =
+      Number(
+        process.env
+          .SEND_FEE_PERCENT ||
+          "1.5"
+      );
+
+    if (!rpcUrl) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Missing RPC URL.",
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+
+    if (!feeWallet) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Missing FEE_WALLET in env.",
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+
+    if (
+      !ethers.isAddress(to)
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Invalid recipient address.",
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    if (
+      !ethers.isAddress(
+        feeWallet
+      )
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Invalid fee wallet.",
+        },
+        {
+          status: 500,
+        }
+      );
+    }
+
+    const provider =
+      new ethers.JsonRpcProvider(
+        rpcUrl
+      );
+
+    const wallet =
+      new ethers.Wallet(
+        privateKey,
+        provider
+      );
+
+    const sendValue =
+      ethers.parseEther(
+        amount
+      );
+
+    const feeValue =
+      (sendValue *
+        BigInt(
+          Math.round(
+            feePercent *
+              100
+          )
+        )) /
+      10000n;
+
+    const totalNeed =
+      sendValue +
+      feeValue;
+
+    const balance =
+      await provider.getBalance(
+        wallet.address
+      );
+
+    if (
+      balance <
+      totalNeed
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "Insufficient balance.",
+          sender:
+            wallet.address,
+        },
+        {
+          status: 400,
+        }
+      );
+    }
+
+    const txMain =
+      await wallet.sendTransaction(
+        {
+          to,
+          value:
+            sendValue,
+        }
+      );
+
+    await txMain.wait();
+
+    const txFee =
+      await wallet.sendTransaction(
+        {
+          to: feeWallet,
+          value:
+            feeValue,
+        }
+      );
+
+    await txFee.wait();
+
+    return NextResponse.json(
+      {
+        success: true,
+        hash:
+          txMain.hash,
+        feeHash:
+          txFee.hash,
+        from:
+          wallet.address,
+        to,
+        amount,
+        fee:
+          ethers.formatEther(
+            feeValue
+          ),
+      }
+    );
   } catch (error: any) {
     return NextResponse.json(
       {
         success: false,
-        error: error?.message || "Transaction failed.",
+        error:
+          error?.message ||
+          "Transaction failed.",
       },
-      { status: 500 }
+      {
+        status: 500,
+      }
     );
   }
 }
