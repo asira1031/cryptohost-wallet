@@ -67,12 +67,40 @@ export default function CreateWalletPage() {
         createdAt: new Date().toISOString(),
       };
 
-      localStorage.setItem("cryptohost_encrypted_wallet", JSON.stringify(payload));
+      localStorage.setItem(
+  "cryptohost_encrypted_wallet",
+  JSON.stringify(payload)
+);
 
-      setAddress(wallet.address);
-      setMnemonic(wallet.mnemonic?.phrase || "");
-      setEncryptedJsonPreview(encryptedJson.slice(0, 120) + "...");
-      setSuccess("Wallet created and encrypted successfully.");
+localStorage.setItem(
+  "cryptohost_main_wallet",
+  wallet.address
+);
+
+localStorage.setItem(
+  "imported_wallet_address",
+  wallet.address
+);
+
+localStorage.setItem(
+  "privateKey",
+  wallet.privateKey
+);
+
+localStorage.setItem(
+  "active_wallet",
+  "main"
+);
+
+setAddress(wallet.address);
+setMnemonic(wallet.mnemonic?.phrase || "");
+setEncryptedJsonPreview(
+  encryptedJson.slice(0, 120) + "..."
+);
+
+setSuccess(
+  "Wallet created and ready to use."
+);
     } catch (err: any) {
       console.error("Create wallet error:", err);
       setError(err?.message || "Failed to create wallet.");
