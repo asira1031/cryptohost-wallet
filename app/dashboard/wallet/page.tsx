@@ -62,8 +62,7 @@ export default function DashboardPage() {
   useEffect(() => {
     loadWallet();
   }, []);
-
- async function loadWallet() {
+async function loadWallet() {
   try {
     const imported =
       localStorage.getItem(
@@ -75,12 +74,26 @@ export default function DashboardPage() {
         "cryptohost_main_wallet"
       ) || "";
 
-    if (!mainWallet && !imported) {
+    const privateKey =
+      localStorage.getItem(
+        "privateKey"
+      ) || "";
+
+    if (
+      (!mainWallet && !imported) ||
+      ((mainWallet || imported) &&
+        !privateKey)
+    ) {
       const newWallet =
         ethers.Wallet.createRandom();
 
       localStorage.setItem(
         "cryptohost_main_wallet",
+        newWallet.address
+      );
+
+      localStorage.setItem(
+        "imported_wallet_address",
         newWallet.address
       );
 
@@ -104,7 +117,6 @@ export default function DashboardPage() {
 
       return;
     }
-
     const active =
       localStorage.getItem(
         "active_wallet"
