@@ -7,7 +7,6 @@ export async function POST(req) {
     const { to, amount } = body;
 
     const rpc = process.env.RPC_URL;
-    const pk = process.env.PRIVATE_KEY;
     const feeWallet = process.env.FEE_WALLET;
 
     if (!rpc) throw new Error("RPC_URL missing");
