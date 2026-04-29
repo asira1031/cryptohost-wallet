@@ -354,23 +354,6 @@ setSending(false);
     );
   }
  
-  try {
-    setStatus("");
-    setSending(true);
-
-    if (!to || !amount) {
-      setStatus(
-        "Enter recipient and amount."
-      );
-      setSending(false);
-      return;
-    }
-
-    setStatus("Ready to send.");
-    setSending(false);
-  } catch {
-    setSending(false);
- }
 return (
     <main className="min-h-screen bg-black text-white px-4 py-8 flex justify-center">
       <div className="w-full max-w-md">
