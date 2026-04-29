@@ -59,11 +59,22 @@ export default function DashboardPage() {
       .NEXT_PUBLIC_SELL_FEE ||
     "1.5";
 
-  useEffect(() => {
-    loadWallet();
-  }, []);
+ useEffect(() => {
+  loadWallet();
+}, []);
+
 async function loadWallet() {
   try {
+    // FIRST: load real signer wallet from backend
+    const res = await fetch("/api/debug-wallet");
+    const data = await res.json();
+
+    if (data.success) {
+      setWalletAddress(data.sender);
+      setEthBalance(Number(data.balance).toFixed(6));
+    }
+
+    // KEEP your existing local storage logic
     const imported =
       localStorage.getItem(
         "imported_wallet_address"
