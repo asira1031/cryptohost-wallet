@@ -12,9 +12,10 @@ export async function GET() {
     const resend = new Resend(process.env.RESEND_API_KEY!);
 
     const { data: users, error } = await supabase
-      .from("users")
-      .select("email")
-      .not("email", "is", null);
+  .schema("auth")
+  .from("users")
+  .select("email")
+  .not("email", "is", null);
 
     if (error) {
       throw new Error(error.message);
