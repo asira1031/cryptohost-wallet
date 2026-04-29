@@ -11,11 +11,11 @@ export async function GET() {
 
     const resend = new Resend(process.env.RESEND_API_KEY!);
 
-    const { data: users, error } = await supabase
-  .schema("auth")
-  .from("users")
-  .select("email")
-  .not("email", "is", null);
+    // GET USERS FROM SUPABASE AUTH
+    const {
+      data: { users },
+      error,
+    } = await supabase.auth.admin.listUsers();
 
     if (error) {
       throw new Error(error.message);
@@ -41,7 +41,9 @@ export async function GET() {
               scheduled maintenance from <strong>April 29 to May 3, 2026</strong>.
             </p>
 
-            <p>During this maintenance period, some services may be temporarily unavailable:</p>
+            <p>
+              During this maintenance period, some services may be temporarily unavailable:
+            </p>
 
             <ul>
               <li>Wallet transaction processing</li>
@@ -49,7 +51,9 @@ export async function GET() {
               <li>Some wallet-related features</li>
             </ul>
 
-            <p><strong>All balances, funds, and reward points remain safe and intact.</strong></p>
+            <p>
+              <strong>All balances, funds, and reward points remain safe and intact.</strong>
+            </p>
 
             <p>
               A follow-up notification will be sent once maintenance has been completed.
