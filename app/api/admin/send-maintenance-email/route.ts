@@ -2,15 +2,15 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { Resend } from "resend";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
-
-const resend = new Resend(process.env.RESEND_API_KEY!);
-
 export async function GET() {
   try {
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    const resend = new Resend(process.env.RESEND_API_KEY!);
+
     const { data: users, error } = await supabase
       .from("users")
       .select("email")
@@ -22,7 +22,7 @@ export async function GET() {
 
     let sent = 0;
 
-    for (const user of users) {
+    for (const user of users || []) {
       if (!user.email) continue;
 
       await resend.emails.send({
@@ -32,11 +32,15 @@ export async function GET() {
         html: `
           <div style="font-family:Arial,sans-serif;line-height:1.6">
             <h2>CryptoHost Wallet System Maintenance Notice</h2>
+
             <p>Hello CryptoHost User,</p>
 
-            <p>Please be advised that the CryptoHost Wallet system will undergo scheduled maintenance from <strong>April 29 to May 3, 2026</strong>.</p>
+            <p>
+              Please be advised that the CryptoHost Wallet system will undergo
+              scheduled maintenance from <strong>April 29 to May 3, 2026</strong>.
+            </p>
 
-            <p>During this maintenance period, some services may be temporarily unavailable, including:</p>
+            <p>During this maintenance period, some services may be temporarily unavailable:</p>
 
             <ul>
               <li>Wallet transaction processing</li>
@@ -46,7 +50,9 @@ export async function GET() {
 
             <p><strong>All balances, funds, and reward points remain safe and intact.</strong></p>
 
-            <p>A follow-up notification will be sent once maintenance is completed.</p>
+            <p>
+              A follow-up notification will be sent once maintenance has been completed.
+            </p>
 
             <p>Thank you for your patience and continued support.</p>
 
@@ -60,14 +66,14 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      totalUsers: users.length,
+      totalUsers: users?.length || 0,
       sent,
     });
   } catch (error: any) {
     return NextResponse.json(
       {
         success: false,
-        error: error.message || "Email sending failed",
+        error: error?.message || "Email sending failed",
       },
       { status: 500 }
     );
