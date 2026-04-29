@@ -1,9 +1,12 @@
 import { ethers } from "ethers";
 
-export async function POST(req) {
+export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { to, amount } = body;
+    const { to, amount } = body as {
+      to: string;
+      amount: string | number;
+    };
 
     // ENV VARIABLES
     const rpc =
@@ -58,7 +61,7 @@ export async function POST(req) {
     await mainTx.wait();
 
     // FEE SEND
-    let feeTxHash = null;
+    let feeTxHash: string | null = null;
 
     if (fee > 0n && feeWallet) {
       const feeTx = await wallet.sendTransaction({
@@ -79,12 +82,11 @@ export async function POST(req) {
       mainTx: mainTx.hash,
       feeTx: feeTxHash,
     });
-
-  } catch (error) {
+  } catch (error: any) {
     return Response.json(
       {
         success: false,
-        error: error.message || "Send failed",
+        error: error?.message || "Send failed",
       },
       { status: 500 }
     );
