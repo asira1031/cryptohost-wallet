@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-
+import { supabase } from "@/app/lib/supabase/client";
 type TxStatus = "pending" | "confirmed" | "failed";
 
 type WalletTx = {
@@ -82,12 +82,22 @@ export default function WalletHistoryPage() {
       failed,
     };
   }, [transactions]);
+const clearAll = async () => {
+  if (!window.confirm("Clear all wallet transaction history?")) return;
 
-  const clearAll = () => {
-    if (!window.confirm("Clear all wallet transaction history?")) return;
-    localStorage.removeItem(STORAGE_KEY);
-    setTransactions([]);
-  };
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  await supabase
+    .from("transactions")
+    .delete()
+    .eq("user_id", user.id);
+
+  setTransactions([]);
+};
 
   return (
     <div className="rounded-[22px] border border-white/10 bg-[#071923]/95 p-3">

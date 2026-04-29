@@ -1,13 +1,15 @@
 "use client";
-
+import { supabase } from "@/app/lib/supabase/client";
 import { useEffect, useState } from "react";
 import { ethers } from "ethers";
 import { QRCodeSVG } from "qrcode.react";
 import { useRouter } from "next/navigation";
 import { loadEvmWallet } from "../../lib/wallet/evmWallet";
+import Link from "next/link";
+
 export default function DashboardPage() {
   const router = useRouter();
-
+  
   const [walletAddress, setWalletAddress] =
     useState("");
 
@@ -19,6 +21,8 @@ export default function DashboardPage() {
 
   const [usdtBalance, setUsdtBalance] =
     useState("0.00");
+  const [points, setPoints] =
+  useState("0.00");
 
   const [asset, setAsset] =
     useState("ETH");
@@ -65,16 +69,16 @@ export default function DashboardPage() {
 
 async function loadWallet() {
   try {
-    // FIRST: load real signer wallet from backend
+    // FIRST: load signer wallet from backend
     const res = await fetch("/api/debug-wallet");
     const data = await res.json();
 
     if (data.success) {
-      setWalletAddress(data.sender);
+      setWalletAddress("CryptoHost Account");
       setEthBalance(Number(data.balance).toFixed(6));
     }
 
-    // KEEP your existing local storage logic
+    // LOCAL STORAGE
     const imported =
       localStorage.getItem(
         "imported_wallet_address"
@@ -90,6 +94,7 @@ async function loadWallet() {
         "privateKey"
       ) || "";
 
+    // CREATE WALLET IF NONE EXISTS
     if (
       (!mainWallet && !imported) ||
       ((mainWallet || imported) &&
@@ -118,49 +123,30 @@ async function loadWallet() {
         "main"
       );
 
-      if (!data.success) {
-  setWalletAddress(imported || mainWallet);
-}
-
+      setWalletAddress("CryptoHost Account");
       setEthBalance("0.000000");
       setBnbBalance("0.000000");
       setUsdtBalance("0.00");
-
       return;
     }
+
+    // ACTIVE WALLET
     const active =
       localStorage.getItem(
         "active_wallet"
       ) || "main";
+const address =
+  active === "imported" &&
+  imported
+    ? imported
+    : mainWallet;
 
-    const address =
-      active === "imported" &&
-      imported
-        ? imported
-        : mainWallet;
-
-    setWalletAddress(address);
-
-    if (!address) return;
-
-    const ethProvider =
-      new ethers.JsonRpcProvider(
-        process.env
-          .NEXT_PUBLIC_ETH_RPC_URL ||
-          "https://ethereum.publicnode.com"
-      );
-
-    const wei =
-      await ethProvider.getBalance(
-        address
-      );
-
-    setEthBalance(
-      Number(
-        ethers.formatEther(wei)
-      ).toFixed(6)
-    );
-
+if (!data.success) {
+  setWalletAddress(
+    "CryptoHost Account"
+  );
+}
+    // BNB BALANCE
     try {
       const bscProvider =
         new ethers.JsonRpcProvider(
@@ -183,13 +169,59 @@ async function loadWallet() {
       );
     } catch {}
 
-    setUsdtBalance("0.00");
+    // INTERNAL BALANCES FROM SUPABASE
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (user) {
+      const { data: balanceRow } =
+        await supabase
+          .from("balances")
+          .select(
+            "eth_balance, usdt_balance, points"
+          )
+          .eq("user_id", user.id)
+          .single();
+
+      if (balanceRow) {
+        setEthBalance(
+          Number(
+            balanceRow.eth_balance
+          ).toFixed(6)
+        );
+
+        setUsdtBalance(
+          Number(
+            balanceRow.usdt_balance
+          ).toFixed(2)
+        );
+
+        setPoints(
+          Number(
+            balanceRow.points
+          ).toFixed(2)
+        );
+      }
+    } else {
+      setUsdtBalance("0.00");
+    }
   } catch {
     setEthBalance("0.000000");
     setBnbBalance("0.000000");
+    setUsdtBalance("0.00");
   }
 }
-  async function handleSend() {
+function openTransak() {
+  try {
+    window.open(
+      "https://transak.com",
+      "_blank"
+    );
+  } catch {}
+}
+
+async function handleSend() {
   try {
     setStatus("");
     setSending(true);
@@ -269,33 +301,44 @@ savedWallet?.privateKey || "";
     }
 
     setStatus(
-      `Sent Successfully
+  `Sent Successfully
 Main Tx: ${data.hash}
 Fee Tx: ${data.feeHash}`
-    );
+);
 
-    setTo("");
-    setAmount("");
+const {
+  data: { user },
+} = await supabase.auth.getUser();
 
-    await loadWallet();
+if (user) {
+  await supabase
+    .from("transactions")
+    .insert({
+      user_id: user.id,
+      type: "send",
+      asset,
+      amount: -Number(amount),
+      status: "completed",
+      reference: data.hash,
+      note: to,
+    });
+}
 
-    setSending(false);
+setTo("");
+setAmount("");
+await loadWallet();
+
+setSending(false);
   } catch (error: any) {
     setStatus(
       error?.message ||
-        "Transaction failed."
+      "Transaction failed."
     );
-
     setSending(false);
   }
 }
 
-  function openTransak() {
-    window.open(
-      "https://transak.com",
-      "_blank"
-    );
-  }
+
 
   function openMoonPay() {
     window.open(
@@ -310,8 +353,25 @@ Fee Tx: ${data.feeHash}`
       "_blank"
     );
   }
+ 
+  try {
+    setStatus("");
+    setSending(true);
 
-  return (
+    if (!to || !amount) {
+      setStatus(
+        "Enter recipient and amount."
+      );
+      setSending(false);
+      return;
+    }
+
+    setStatus("Ready to send.");
+    setSending(false);
+  } catch {
+    setSending(false);
+ }
+return (
     <main className="min-h-screen bg-black text-white px-4 py-8 flex justify-center">
       <div className="w-full max-w-md">
 
@@ -327,11 +387,11 @@ Fee Tx: ${data.feeHash}`
           </div>
 
           <button
-            onClick={() =>
-              router.push(
-                "/dashboard/security"
-              )
-            }
+           onClick={() => {
+    router.push(
+    "/dashboard/security"
+  );
+}}
             className="px-4 py-2 rounded-xl bg-zinc-900"
           >
             Security
@@ -395,7 +455,12 @@ Fee Tx: ${data.feeHash}`
             Refresh
           </button>
         </div>
-
+<Link
+  href="/dashboard/history"
+  className="block rounded-2xl bg-zinc-900 py-4 font-bold text-center mt-3"
+>
+  History
+</Link>
         <div className="rounded-3xl bg-zinc-950 border border-white/10 p-5 mb-5">
           <p className="text-sm text-zinc-400 mb-4">
             Send Crypto
@@ -443,15 +508,11 @@ Fee Tx: ${data.feeHash}`
             {SEND_FEE}%
           </p>
 
-          <button
-            onClick={
-              handleSend
-            }
-            disabled={
-              sending
-            }
-            className="w-full rounded-2xl bg-amber-500 py-4 text-black font-bold"
-          >
+       <button
+  onClick={handleSend}
+  disabled={sending}
+  className="w-full rounded-2xl bg-amber-500 py-4 text-black font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+>
             {sending
               ? "Sending..."
               : `Send ${asset}`}
@@ -565,7 +626,7 @@ Fee Tx: ${data.feeHash}`
         </div>
       )}
 
-      {showSellModal && (
+          {showSellModal && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center px-4">
           <div className="w-full max-w-sm rounded-3xl bg-zinc-950 border border-white/10 p-6">
             <h2 className="text-2xl font-bold text-amber-400 text-center mb-5">
@@ -589,7 +650,7 @@ Fee Tx: ${data.feeHash}`
             </button>
           </div>
         </div>
-      )}
+          )}
     </main>
   );
 }
