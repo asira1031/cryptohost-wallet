@@ -356,15 +356,15 @@ const sendTx = await signer.sendTransaction({
       status: receipt?.status === 1 ? "confirmed" : "failed",
       createdAt: new Date().toISOString(),
     });
-
-    setSuccess(
-      feeAmount > 0
-        ? `Transaction sent successfully. ${feeAmount.toFixed(
-            6
-          )} ETH fee was sent to the fee wallet.${feeTxHash ? ` Fee TX: ${feeTxHash}` : ""}`
-        : "Transaction sent successfully. No fee was charged because the calculated fee was below the minimum threshold."
-    );
-
+if (data.success) {
+  setSuccess(
+    `Transaction sent successfully. Main TX: ${data.mainTx}${
+      data.feeTx ? ` | Fee TX: ${data.feeTx}` : ""
+    }`
+  );
+} else {
+  setSuccess(data.error || "Send failed.");
+}
     setRecipient("");
     setEthAmount("");
     await loadWalletData(fromAddress);
