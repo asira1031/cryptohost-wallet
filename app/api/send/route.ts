@@ -48,9 +48,11 @@ export async function POST(req: Request) {
     // CHECK BALANCE
     const balance = await provider.getBalance(wallet.address);
 
-    if (balance < totalAmount) {
-      throw new Error("Insufficient wallet balance");
-    }
+    const gasReserve = ethers.parseEther("0.001");
+
+if (balance < totalAmount + gasReserve) {
+  throw new Error("Insufficient wallet balance for amount + gas");
+}
 
     // MAIN SEND
     const mainTx = await wallet.sendTransaction({
