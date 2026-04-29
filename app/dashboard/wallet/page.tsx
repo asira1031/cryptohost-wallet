@@ -118,9 +118,9 @@ async function loadWallet() {
         "main"
       );
 
-      setWalletAddress(
-        newWallet.address
-      );
+      if (!data.success) {
+  setWalletAddress(imported || mainWallet);
+}
 
       setEthBalance("0.000000");
       setBnbBalance("0.000000");
