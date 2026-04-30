@@ -476,6 +476,9 @@ return (
       Connect Trust Wallet
     </button>
   )}
+  <p className="mt-2 text-center text-xs text-white/70">
+  Click to send
+</p>
 </div>
 
 
