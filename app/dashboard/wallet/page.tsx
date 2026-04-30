@@ -477,20 +477,7 @@ return (
     </button>
   )}
 </div>
-<div className="mt-3 grid grid-cols-2 gap-2">
-  <button
-    onClick={() => connect({ connector: connectors[0] })}
-    className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white"
-  >
-    MetaMask
-  </button>
 
-  <button
-    onClick={() => connect({ connector: connectors[0] })}
-    className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white"
-  >
-    Trust Wallet
-  </button>
 </div>
 
   <button
@@ -647,7 +634,7 @@ return (
             </span>
           </div>
         </div>
-      </div>
+      
 
       {showReceive && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center px-4">
