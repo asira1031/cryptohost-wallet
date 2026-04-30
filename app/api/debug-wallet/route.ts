@@ -1,6 +1,6 @@
 import { ethers } from "ethers";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
     const rpc =
       process.env.RPC_URL?.trim() ||
@@ -11,18 +11,15 @@ export async function GET() {
     if (!rpc) throw new Error("RPC_URL missing");
     if (!pk) throw new Error("PRIVATE_KEY missing");
 
+    const { searchParams } = new URL(req.url);
+    const address = searchParams.get("address")?.trim();
+
+    if (!address) throw new Error("Address missing");
+
     const provider = new ethers.JsonRpcProvider(rpc);
     const wallet = new ethers.Wallet(pk, provider);
 
-  const targetWallet =
-  localStorage.getItem("imported_wallet_address") ||
-  localStorage.getItem("cryptohost_main_wallet") ||
-  "";
-
-if (!targetWallet) return;
-
-const balance = await provider.getBalance(targetWallet);
-
+    const balance = await provider.getBalance(address);
 
     return Response.json({
       success: true,
