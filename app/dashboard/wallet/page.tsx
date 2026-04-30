@@ -453,7 +453,7 @@ return (
     onClick={() => connect({ connector: connectors[0] })}
     className="mt-3 rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white"
   >
-    Connect Wallet
+    Connect  MetaMask
   </button>
 )}
 <div className="mt-3 flex items-center gap-2 flex-wrap">
@@ -473,9 +473,24 @@ return (
       onClick={() => connect({ connector: connectors[0] })}
       className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white"
     >
-      Connect Wallet
+      Connect Trust Wallet
     </button>
   )}
+</div>
+<div className="mt-3 grid grid-cols-2 gap-2">
+  <button
+    onClick={() => connect({ connector: connectors[0] })}
+    className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white"
+  >
+    MetaMask
+  </button>
+
+  <button
+    onClick={() => connect({ connector: connectors[0] })}
+    className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white"
+  >
+    Trust Wallet
+  </button>
 </div>
 
   <button
