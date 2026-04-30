@@ -1,4 +1,5 @@
 "use client";
+import WalletConnectButtons from "./components/WalletConnectButtons";
 import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { supabase } from "@/app/lib/supabase/client";
 import { useEffect, useState } from "react";
