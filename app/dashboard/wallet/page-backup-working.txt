@@ -760,8 +760,10 @@ if (data.success) {
               disabled={sending || !isUnlocked}
               className="w-full rounded-2xl border border-cyan-400/25 bg-cyan-500/20 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:bg-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {!isUnlocked ? "Unlock Wallet First" : sending ? "Sending..." : "Send ETH"}
-            </button>
+             <div className="mb-3 rounded-xl bg-white/5 p-3 text-xs text-white/70">
+  <p>Service Fee (1.5%): {feePreview} {asset}</p>
+  <p>Total Required: {totalPreview} {asset} + gas</p>
+</div>
           </div>
         ) : (
           <div className="space-y-3">

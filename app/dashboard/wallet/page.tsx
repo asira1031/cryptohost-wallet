@@ -1,4 +1,5 @@
 "use client";
+import { useAccount, useConnect, useDisconnect } from "wagmi";
 import { supabase } from "@/app/lib/supabase/client";
 import { useEffect, useState } from "react";
 import { ethers } from "ethers";
@@ -9,7 +10,9 @@ import Link from "next/link";
 
 export default function DashboardPage() {
   const router = useRouter();
-  
+  const { address, isConnected } = useAccount();
+const { connect, connectors } = useConnect();
+const { disconnect } = useDisconnect();
   const [walletAddress, setWalletAddress] =
     useState("");
 
@@ -48,6 +51,15 @@ export default function DashboardPage() {
   const [showSellModal, setShowSellModal] =
     useState(false);
 
+    const feePreview =
+  amount && !isNaN(Number(amount))
+    ? (Number(amount) * 0.015).toFixed(6)
+    : "0.000000";
+
+const totalPreview =
+  amount && !isNaN(Number(amount))
+    ? (Number(amount) + Number(feePreview)).toFixed(6)
+    : "0.000000";
     const currentWallet =
   walletAddress ||
   (typeof window !== "undefined"
@@ -291,16 +303,15 @@ async function handleSend() {
 loadEvmWallet();
 
 const privateKey =
-savedWallet?.privateKey || "";
+  savedWallet?.privateKey || "";
 
-    if (!privateKey) {
-      setStatus(
-        "No wallet private key found."
-      );
-      setSending(false);
-      return;
-    }
-
+if (!privateKey) {
+  setStatus(
+    "Connect MetaMask, Trust Wallet, or WalletConnect to send funds securely."
+  );
+  setSending(false);
+  return;
+}
     const res =
       await fetch(
         "/api/send",
@@ -430,10 +441,42 @@ return (
           <p className="text-sm mt-1">
             {usdtBalance} USDT
           </p>
+          {isConnected ? (
+  <button
+    onClick={() => disconnect()}
+    className="mt-3 rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white"
+  >
+    Disconnect
+  </button>
+) : (
+  <button
+    onClick={() => connect({ connector: connectors[0] })}
+    className="mt-3 rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white"
+  >
+    Connect Wallet
+  </button>
+)}
 <div className="mt-3 flex items-center gap-2 flex-wrap">
   <p className="text-xs text-black/80 break-all">
     {currentWallet  || "No wallet loaded"}
   </p>
+  <div className="mb-4">
+  {isConnected ? (
+    <button
+      onClick={() => disconnect()}
+      className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white"
+    >
+      Disconnect {address?.slice(0,6)}...{address?.slice(-4)}
+    </button>
+  ) : (
+    <button
+      onClick={() => connect({ connector: connectors[0] })}
+      className="rounded-xl bg-black px-4 py-2 text-sm font-semibold text-white"
+    >
+      Connect Wallet
+    </button>
+  )}
+</div>
 
   <button
     onClick={() => {
