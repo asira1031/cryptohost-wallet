@@ -478,7 +478,6 @@ return (
   )}
 </div>
 
-</div>
 
   <button
     onClick={() => {
@@ -634,7 +633,7 @@ return (
             </span>
           </div>
         </div>
-      
+      </div>
 
       {showReceive && (
         <div className="fixed inset-0 bg-black/70 flex items-center justify-center px-4">
