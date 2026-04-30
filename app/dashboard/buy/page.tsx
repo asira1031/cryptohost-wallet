@@ -95,8 +95,11 @@ export default function BuyPage() {
   }
 
   function buildRedirectUrl() {
-    const amount = usdValue > 0 ? String(usdValue) : "100";
-
+    
+const amount =
+  totalToPay > 0
+    ? totalToPay.toFixed(2)
+    : "102.50";
     if (provider === "MoonPay") {
       const url = new URL("https://buy.moonpay.com");
       url.searchParams.set("currencyCode", asset.toLowerCase());
@@ -289,7 +292,7 @@ export default function BuyPage() {
 
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-sm text-white/65">
-                  Service Fee ({serviceFeePercent}%)
+                  Processing & Network Fee ({serviceFeePercent}%)
                 </span>
                 <span className="text-sm font-semibold text-white">
                   ${serviceFeeAmount.toLocaleString(undefined, {
