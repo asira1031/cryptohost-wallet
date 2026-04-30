@@ -48,6 +48,14 @@ export default function DashboardPage() {
   const [showSellModal, setShowSellModal] =
     useState(false);
 
+    const currentWallet =
+  walletAddress ||
+  (typeof window !== "undefined"
+    ? localStorage.getItem("imported_wallet_address") ||
+      localStorage.getItem("cryptohost_main_wallet") ||
+      ""
+    : "");
+
   const SEND_FEE =
     process.env
       .NEXT_PUBLIC_SEND_FEE ||
@@ -74,9 +82,15 @@ async function loadWallet() {
     const data = await res.json();
 
     if (data.success) {
-      setWalletAddress("CryptoHost Account");
-      setEthBalance(Number(data.balance).toFixed(6));
-    }
+  const realAddress =
+    data.address ||
+    data.walletAddress ||
+    data.wallet ||
+    "";
+
+  setWalletAddress(realAddress);
+  setEthBalance(Number(data.balance || 0).toFixed(6));
+}
 
     // LOCAL STORAGE
     const imported =
@@ -122,12 +136,25 @@ async function loadWallet() {
         "active_wallet",
         "main"
       );
+const savedWallet =
+  localStorage.getItem("imported_wallet_address") ||
+  localStorage.getItem("cryptohost_main_wallet") ||
+  localStorage.getItem("main_wallet_address") ||
+  "";
 
-      setWalletAddress("CryptoHost Account");
-      setEthBalance("0.000000");
-      setBnbBalance("0.000000");
-      setUsdtBalance("0.00");
-      return;
+console.log("Saved wallet:", savedWallet);
+
+if (!savedWallet) {
+  setWalletAddress("");
+  setEthBalance("0.000000");
+  setBnbBalance("0.000000");
+  setUsdtBalance("0.00");
+  return;
+}
+
+setWalletAddress(savedWallet);
+
+setWalletAddress(savedWallet);
     }
 
     // ACTIVE WALLET
@@ -140,11 +167,10 @@ const address =
   imported
     ? imported
     : mainWallet;
-
 if (!data.success) {
-  setWalletAddress(
-    "CryptoHost Account"
-  );
+  if (!data.success) {
+  // keep current wallet from localStorage
+}
 }
     // BNB BALANCE
     try {
@@ -397,7 +423,23 @@ return (
           <p className="text-sm mt-1">
             {usdtBalance} USDT
           </p>
+<div className="mt-3 flex items-center gap-2 flex-wrap">
+  <p className="text-xs text-black/80 break-all">
+    {currentWallet  || "No wallet loaded"}
+  </p>
 
+  <button
+    onClick={() => {
+      if (walletAddress) {
+        navigator.clipboard.writeText(walletAddress);
+        alert("Wallet address copied!");
+      }
+    }}
+    className="rounded-lg bg-black px-3 py-1 text-xs font-semibold text-white"
+  >
+    Copy
+  </button>
+</div>
           <p className="text-xs mt-3 break-all">
             {walletAddress}
           </p>

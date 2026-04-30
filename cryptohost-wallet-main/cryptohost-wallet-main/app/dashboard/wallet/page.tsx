@@ -982,7 +982,19 @@ export default function WalletPage() {
         ) : (
           <div className="space-y-3">
             <div className="flex justify-center rounded-[22px] bg-white p-4">
-              <QRCodeSVG value={walletAddress || "No wallet loaded"} size={180} />
+             <QRCodeSVG
+  value={
+    walletAddress ||
+    localStorage.getItem("imported_wallet_address") ||
+    localStorage.getItem("cryptohost_main_wallet") ||
+    "0x0000000000000000000000000000000000000000"
+  }
+  size={220}
+  bgColor="#FFFFFF"
+  fgColor="#000000"
+  level="H"
+  includeMargin={true}
+/>
             </div>
 
             <div className="rounded-2xl border border-white/10 bg-[#06131b] p-3">
@@ -990,7 +1002,10 @@ export default function WalletPage() {
                 Receive Address
               </p>
               <p className="mt-2 break-all text-sm text-white/85">
-                {walletAddress || "No wallet loaded"}
+               {walletAddress ||
+  localStorage.getItem("imported_wallet_address") ||
+  localStorage.getItem("cryptohost_main_wallet") ||
+  "No wallet loaded"}
               </p>
             </div>
 
