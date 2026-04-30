@@ -511,23 +511,17 @@ return (
           </button>
 
           <button
-            onClick={() =>
-              setShowBuyModal(true)
-            }
-            className="rounded-2xl bg-zinc-900 py-4 font-bold"
-          >
-            Buy
-          </button>
-
+  onClick={() => router.push("/dashboard/direct-buy")}
+  className="rounded-2xl bg-green-600 py-4 font-bold"
+>
+  Buy
+</button>
           <button
-            onClick={() =>
-              setShowSellModal(true)
-            }
-            className="rounded-2xl bg-zinc-900 py-4 font-bold"
-          >
-            Sell
-          </button>
-
+  onClick={() => router.push("/dashboard/direct-sell")}
+  className="rounded-2xl bg-blue-600 py-4 font-bold"
+>
+  Sell
+</button>
           <button
             onClick={loadWallet}
             className="rounded-2xl bg-zinc-900 py-4 font-bold"

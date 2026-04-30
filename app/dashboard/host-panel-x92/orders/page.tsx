@@ -1,27 +1,33 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { supabase } from "@/app/lib/supabase/client";
 
 export default function AdminOrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
 
+  const loadOrders = async () => {
+    const { data, error } = await supabase
+      .from("orders")
+      .select("*")
+      .order("created_at", { ascending: false });
+
+    if (!error && data) {
+      setOrders(data);
+    }
+  };
+
   useEffect(() => {
-    const saved =
-      JSON.parse(localStorage.getItem("cryptohost_orders") || "[]");
-    setOrders(saved);
+    loadOrders();
   }, []);
 
-  const updateStatus = (id: string, status: string) => {
-    const updated = orders.map((order) =>
-      order.id === id ? { ...order, status } : order
-    );
+  const updateStatus = async (id: string, status: string) => {
+    await supabase
+      .from("orders")
+      .update({ status })
+      .eq("id", id);
 
-    setOrders(updated);
-
-    localStorage.setItem(
-      "cryptohost_orders",
-      JSON.stringify(updated)
-    );
+    loadOrders();
   };
 
   return (
@@ -40,14 +46,26 @@ export default function AdminOrdersPage() {
             key={order.id}
             className="bg-zinc-900 p-4 rounded-xl"
           >
-            <p>ID: {order.id}</p>
-            <p>Type: {order.type}</p>
-            <p>Coin: {order.coin}</p>
-            <p>Amount: ₱{order.amount}</p>
-            <p>Status: {order.status}</p>
-            <p>Date: {order.date}</p>
+            <p><b>ID:</b> {order.id}</p>
+            <p><b>Type:</b> {order.order_type}</p>
+            <p><b>Coin:</b> {order.coin}</p>
+            <p><b>Amount:</b> ₱{order.amount}</p>
+            <p><b>Status:</b> {order.status}</p>
+            <p><b>Date:</b> {order.created_at}</p>
 
-            <div className="flex gap-2 mt-3">
+            {order.proof && (
+              <div className="mt-3 bg-black p-3 rounded">
+                <p className="font-bold text-yellow-400">
+                  Proof / TX Hash
+                </p>
+
+                <p className="break-all text-sm">
+                  {order.proof}
+                </p>
+              </div>
+            )}
+
+            <div className="flex gap-2 mt-4 flex-wrap">
               <button
                 onClick={() =>
                   updateStatus(order.id, "Processing")
