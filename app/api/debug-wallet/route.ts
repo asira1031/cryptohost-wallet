@@ -14,7 +14,15 @@ export async function GET() {
     const provider = new ethers.JsonRpcProvider(rpc);
     const wallet = new ethers.Wallet(pk, provider);
 
-    const balance = await provider.getBalance(wallet.address);
+  const targetWallet =
+  localStorage.getItem("imported_wallet_address") ||
+  localStorage.getItem("cryptohost_main_wallet") ||
+  "";
+
+if (!targetWallet) return;
+
+const balance = await provider.getBalance(targetWallet);
+
 
     return Response.json({
       success: true,
