@@ -592,13 +592,18 @@ return (
             </h2>
 
             <div className="bg-white p-4 rounded-2xl inline-block">
-              <QRCodeSVG
-                value={
-                  walletAddress
-                }
-                size={180}
-              />
-            </div>
+  <QRCodeSVG
+    value={
+      currentWallet?.trim() ||
+      "0x0000000000000000000000000000000000000000"
+    }
+    size={260}
+    bgColor="#FFFFFF"
+    fgColor="#000000"
+    level="H"
+    includeMargin={true}
+  />
+</div>
 
             <p className="text-xs mt-4 break-all">
               {walletAddress}

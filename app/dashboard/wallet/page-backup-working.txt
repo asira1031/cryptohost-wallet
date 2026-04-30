@@ -506,9 +506,13 @@ if (data.success) {
         ) : (
           <div className="space-y-3">
             <div className="flex justify-center rounded-[22px] bg-white p-4">
-             <QRCodeSVG
+           
   value={currentWallet?.trim() || "0x0000000000000000000000000000000000000000"}
-  size={220}
+  size={260}
+  bgColor="#FFFFFF"
+  fgColor="#000000"
+  level="H"
+  includeMargin={true}
 />
             </div>
 
