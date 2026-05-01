@@ -300,16 +300,13 @@ async function handleSend() {
       return;
     }
 
-    const savedWallet =
-loadEvmWallet();
+  const savedWallet = loadEvmWallet();
 
 const privateKey =
   savedWallet?.privateKey || "";
 
 if (!privateKey) {
-  setStatus(
-    "Connect MetaMask, Trust Wallet, or WalletConnect to send funds securely."
-  );
+  setStatus("No wallet loaded. Please import or create wallet in Security.");
   setSending(false);
   return;
 }
