@@ -1,18 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ethers } from "ethers";
 import { loadEvmWallet } from "../../lib/wallet/evmWallet";
 
-export default function CleanSendCard() {
+type Props = {
+  walletAddress: string;
+  balance: string;
+};
+
+type WalletData = {
+  address: string;
+  privateKey: string;
+};
+
+export default function CleanSendCard({
+  walletAddress,
+  balance,
+}: Props) {
   const router = useRouter();
-
-  const [walletAddress, setWalletAddress] =
-    useState("");
-
-  const [balance, setBalance] =
-    useState("0.000000");
 
   const [to, setTo] =
     useState("");
@@ -26,45 +33,44 @@ export default function CleanSendCard() {
   const [status, setStatus] =
     useState("");
 
-  useEffect(() => {
-    loadWallet();
-  }, []);
+  function getWallet(): WalletData | null {
+    const savedWallet =
+      loadEvmWallet();
 
-  async function loadWallet() {
-    try {
-      const savedWallet =
-        loadEvmWallet();
-
-      if (!savedWallet?.address) {
-        setStatus(
-          "No wallet found. Please import in Security."
-        );
-        return;
-      }
-
-      setWalletAddress(
-        savedWallet.address
-      );
-
-      const res = await fetch(
-        `/api/debug-wallet?address=${savedWallet.address}`
-      );
-
-      const data =
-        await res.json();
-
-      if (data.success) {
-        setBalance(
-          Number(
-            data.balance || 0
-          ).toFixed(6)
-        );
-      }
-    } catch {
-      setStatus(
-        "Failed to load wallet."
-      );
+    if (
+      savedWallet?.address
+    ) {
+      return {
+        address:
+          savedWallet.address,
+        privateKey:
+          savedWallet.privateKey ||
+          "",
+      };
     }
+
+    const oldAddress =
+      localStorage.getItem(
+        "imported_wallet_address"
+      ) ||
+      localStorage.getItem(
+        "cryptohost_main_wallet"
+      ) ||
+      "";
+
+    const oldPk =
+      localStorage.getItem(
+        "privateKey"
+      ) || "";
+
+    if (!oldAddress) {
+      return null;
+    }
+
+    return {
+      address: oldAddress,
+      privateKey: oldPk,
+    };
   }
 
   async function handleSend() {
@@ -101,11 +107,12 @@ export default function CleanSendCard() {
       }
 
       const savedWallet =
-        loadEvmWallet();
+        getWallet();
 
       if (
         !savedWallet?.privateKey
       ) {
+        setSending(false);
         router.push(
           "/dashboard/security"
         );
@@ -148,7 +155,8 @@ export default function CleanSendCard() {
         `Success!
 Main Tx: ${
           data.mainTx ||
-          data.hash
+          data.hash ||
+          "N/A"
         }
 Fee Tx: ${
           data.feeTx ||
@@ -159,9 +167,9 @@ Fee Tx: ${
       setTo("");
       setAmount("");
 
-      await loadWallet();
-
       setSending(false);
+
+      window.location.reload();
     } catch {
       setStatus(
         "Failed to fetch."

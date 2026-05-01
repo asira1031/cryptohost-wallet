@@ -552,7 +552,10 @@ return (
   History
 </Link>
 
-<CleanSendCard />
+<CleanSendCard
+  walletAddress={walletAddress}
+  balance={ethBalance}
+/>
         <div className="rounded-3xl bg-zinc-950 border border-white/10 p-5 mb-5">
           <p className="text-sm text-zinc-400 mb-4">
             Send Crypto
