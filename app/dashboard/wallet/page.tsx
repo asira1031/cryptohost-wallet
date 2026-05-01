@@ -92,16 +92,19 @@ async function loadWallet() {
   try {
     const savedWallet = loadEvmWallet();
 
-    if (!savedWallet?.address) {
-      setWalletAddress("");
-      setEthBalance("0.000000");
-      setBnbBalance("0.000000");
-      setUsdtBalance("0.00");
-      return;
-    }
+const targetWallet =
+  savedWallet?.address ||
+  localStorage.getItem("imported_wallet_address") ||
+  localStorage.getItem("cryptohost_main_wallet") ||
+  "";
 
-    const targetWallet = savedWallet.address;
-
+if (!targetWallet) {
+  setWalletAddress("");
+  setEthBalance("0.000000");
+  setBnbBalance("0.000000");
+  setUsdtBalance("0.00");
+  return;
+}
     const res = await fetch(
       `/api/debug-wallet?address=${targetWallet}`
     );

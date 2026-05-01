@@ -5,19 +5,19 @@ export async function POST(req: Request) {
     const body = await req.json();
 
     const { to, amount, privateKey } = body as {
-  to: string;
-  amount: string | number;
-  privateKey: string;
-};
-
+      to: string;
+      amount: string | number;
+      privateKey: string;
+    };
 
     // ENV VARIABLES
     const rpc =
       process.env.RPC_URL?.trim() ||
       process.env.NEXT_PUBLIC_ETH_RPC_URL?.trim();
 
+    // USE USER WALLET PRIVATE KEY
     const pk =
-      process.env.PRIVATE_KEY?.trim();
+      privateKey?.trim();
 
     const feeWallet =
       process.env.FEE_WALLET?.trim();
@@ -52,7 +52,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // CONNECT PROVIDER + WALLET
+    // CONNECT PROVIDER + USER WALLET
     const provider =
       new ethers.JsonRpcProvider(rpc);
 
