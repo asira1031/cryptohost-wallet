@@ -1,6 +1,6 @@
 "use client";
 import WalletConnectButtons from "./components/WalletConnectButtons";
-import { useAccount, useConnect, useDisconnect } from "wagmi";
+
 import { supabase } from "@/app/lib/supabase/client";
 import { useEffect, useState } from "react";
 import { ethers } from "ethers";
@@ -8,12 +8,20 @@ import { QRCodeSVG } from "qrcode.react";
 import { useRouter } from "next/navigation";
 import { loadEvmWallet } from "../../lib/wallet/evmWallet";
 import Link from "next/link";
-
+import {
+  useAccount,
+  useConnect,
+  useDisconnect
+} from "wagmi";
 export default function DashboardPage() {
   const router = useRouter();
+
+  
   const { address, isConnected } = useAccount();
+
 const { connect, connectors } = useConnect();
 const { disconnect } = useDisconnect();
+
   const [walletAddress, setWalletAddress] =
     useState("");
 
@@ -83,8 +91,7 @@ const totalPreview =
     process.env
       .NEXT_PUBLIC_SELL_FEE ||
     "1.5";
-
- useEffect(() => {
+useEffect(() => {
   loadWallet();
 }, []);
 
@@ -92,23 +99,25 @@ async function loadWallet() {
   try {
     const savedWallet = loadEvmWallet();
 
-const targetWallet =
-  savedWallet?.address ||
-  localStorage.getItem("imported_wallet_address") ||
-  localStorage.getItem("cryptohost_main_wallet") ||
-  "";
+    const targetWallet =
+      savedWallet?.address ||
+      localStorage.getItem("imported_wallet_address") ||
+      localStorage.getItem("cryptohost_main_wallet") ||
+      "";
 
-if (!targetWallet) {
+    if (!targetWallet) {
   setWalletAddress("");
   setEthBalance("0.000000");
   setBnbBalance("0.000000");
   setUsdtBalance("0.00");
+
+  router.push("/dashboard/security");
   return;
 }
+
     const res = await fetch(
       `/api/debug-wallet?address=${targetWallet}`
     );
-
     const data = await res.json();
 
     if (data.success) {
