@@ -1,6 +1,6 @@
 "use client";
 import WalletConnectButtons from "./components/WalletConnectButtons";
-
+import CleanSendCard from "../../components/wallet/CleanSendCard";
 import { supabase } from "@/app/lib/supabase/client";
 import { useEffect, useState } from "react";
 import { ethers } from "ethers";
@@ -551,6 +551,8 @@ return (
 >
   History
 </Link>
+
+<CleanSendCard />
         <div className="rounded-3xl bg-zinc-950 border border-white/10 p-5 mb-5">
           <p className="text-sm text-zinc-400 mb-4">
             Send Crypto
@@ -746,6 +748,7 @@ return (
           </div>
         </div>
           )}
+            
     </main>
   );
 }
