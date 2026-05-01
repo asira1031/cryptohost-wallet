@@ -241,15 +241,19 @@ export default function WalletPage() {
   setLastTxHash("");
 
   try {
-    if (!isUnlocked || !privateKey) {
-      setError("Unlock wallet first.");
-      return;
-    }
+    const hasMetaMask =
+  typeof window !== "undefined" &&
+  typeof window.ethereum !== "undefined";
 
-    if (!walletAddress) {
-      setError("No wallet loaded.");
-      return;
-    }
+if (!hasMetaMask && (!isUnlocked || !privateKey)) {
+  setError("Unlock wallet first or connect MetaMask.");
+  return;
+}
+
+if (!hasMetaMask && !walletAddress) {
+  setError("No wallet loaded.");
+  return;
+}
 
     const trimmedRecipient = recipient.trim();
 
