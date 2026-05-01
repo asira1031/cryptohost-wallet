@@ -409,17 +409,12 @@ setSending(false);
   }
 
   function openBinance() {
-  window.open(
-    "https://binance.com",
-    "_blank"
-  );
-}
-
-if (!walletAddress) {
-  router.push("/dashboard/security");
-  return null;
-}
-
+    window.open(
+      "https://binance.com",
+      "_blank"
+    );
+  }
+ 
 return (
     <main className="min-h-screen bg-black text-white px-4 py-8 flex justify-center">
       <div className="w-full max-w-md">
