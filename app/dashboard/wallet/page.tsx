@@ -325,8 +325,8 @@ const privateKey =
   savedWallet?.privateKey || "";
 
 if (!privateKey) {
-  setStatus("No wallet loaded. Please import or create wallet in Security.");
   setSending(false);
+  router.push("/dashboard/security");
   return;
 }
     const res =
@@ -409,12 +409,17 @@ setSending(false);
   }
 
   function openBinance() {
-    window.open(
-      "https://binance.com",
-      "_blank"
-    );
-  }
- 
+  window.open(
+    "https://binance.com",
+    "_blank"
+  );
+}
+
+if (!walletAddress) {
+  router.push("/dashboard/security");
+  return null;
+}
+
 return (
     <main className="min-h-screen bg-black text-white px-4 py-8 flex justify-center">
       <div className="w-full max-w-md">
