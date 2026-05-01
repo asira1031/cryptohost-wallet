@@ -90,19 +90,26 @@ const totalPreview =
 
 async function loadWallet() {
   try {
-    // FIRST: load signer wallet from backend
-   const targetWallet =
-  localStorage.getItem("imported_wallet_address") ||
-  localStorage.getItem("cryptohost_main_wallet") ||
-  "";
+    const savedWallet = loadEvmWallet();
 
-const res = await fetch(
-  `/api/debug-wallet?address=${targetWallet}`
-);
+    if (!savedWallet?.address) {
+      setWalletAddress("");
+      setEthBalance("0.000000");
+      setBnbBalance("0.000000");
+      setUsdtBalance("0.00");
+      return;
+    }
+
+    const targetWallet = savedWallet.address;
+
+    const res = await fetch(
+      `/api/debug-wallet?address=${targetWallet}`
+    );
+
     const data = await res.json();
 
     if (data.success) {
-  const realAddress =
+      const realAddress =
     data.address ||
     data.walletAddress ||
     data.wallet ||

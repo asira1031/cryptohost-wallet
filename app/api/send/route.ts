@@ -4,10 +4,12 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    const { to, amount } = body as {
-      to: string;
-      amount: string | number;
-    };
+    const { to, amount, privateKey } = body as {
+  to: string;
+  amount: string | number;
+  privateKey: string;
+};
+
 
     // ENV VARIABLES
     const rpc =
