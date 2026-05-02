@@ -163,7 +163,7 @@ export default function TronWalletCard() {
               className="mt-3 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium text-white"
             >
               Copy Address
-            </button>
+          </button>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -186,6 +186,40 @@ export default function TronWalletCard() {
             </div>
           </div>
 
+          <div className="rounded-2xl border border-white/10 bg-[#06131b] p-4">
+            <p className="mb-3 text-sm font-semibold text-white">
+              TRON Send (Coming Soon)
+            </p>
+
+            <div className="space-y-3">
+              <select
+                defaultValue="TRX"
+                className="w-full rounded-xl border border-white/10 bg-black px-3 py-3 text-sm text-white"
+              >
+                <option value="TRX">TRX</option>
+                <option value="USDT">USDT (TRC20)</option>
+              </select>
+
+              <input
+                type="text"
+                placeholder="Recipient Address"
+                className="w-full rounded-xl border border-white/10 bg-black px-3 py-3 text-sm text-white placeholder:text-white/30"
+              />
+
+              <input
+                type="text"
+                placeholder="Amount"
+                className="w-full rounded-xl border border-white/10 bg-black px-3 py-3 text-sm text-white placeholder:text-white/30"
+              />
+
+              <button
+                type="button"
+                className="w-full rounded-xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-black"
+              >
+                Coming Soon
+              </button>
+            </div>
+          </div>
           
 
         </div>

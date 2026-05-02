@@ -24,6 +24,11 @@ export default function UsdtReceiveCard() {
   const [status, setStatus] =
     useState("");
 
+    const [recipient, setRecipient] =
+  useState("");
+
+const [amount, setAmount] =
+  useState("");
   useEffect(() => {
     loadWallet();
   }, []);
@@ -159,7 +164,39 @@ export default function UsdtReceiveCard() {
             : "Refresh"}
         </button>
       </div>
+<div className="mt-4 space-y-3 relative opacity-60 pointer-events-none">
+    
+  <input
+    type="text"
+    value={recipient}
+    onChange={(e) =>
+      setRecipient(
+        e.target.value
+      )
+    }
+    placeholder="Recipient Address"
+    className="w-full rounded-2xl bg-zinc-900 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
+  />
 
+  <input
+    type="text"
+    value={amount}
+    onChange={(e) =>
+      setAmount(
+        e.target.value
+      )
+    }
+    placeholder="Amount USDT"
+    className="w-full rounded-2xl bg-zinc-900 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
+  />
+
+  <button
+    type="button"
+    className="w-full rounded-2xl bg-emerald-500 py-3 text-sm font-bold text-black"
+  >
+    Coming Soon
+  </button>
+</div>
       {status && (
         <p className="text-xs text-zinc-400 mt-4">
           {status}

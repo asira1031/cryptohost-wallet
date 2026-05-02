@@ -1,5 +1,5 @@
 "use client";
-import TronWalletCard from "@/components/wallet/TronWalletCard";
+import TronWalletCard from "@/app/components/wallet/TronWalletCard";
 import BnbReceiveCard from "@/app/components/wallet/BnbReceiveCard";
 import UsdtReceiveCard from "@/app/components/wallet/UsdtReceiveCard";
 import WalletConnectButtons from "./components/WalletConnectButtons";
@@ -601,69 +601,8 @@ return (
 <UsdtReceiveCard />
 <BnbReceiveCard />
 <TronWalletCard />
-        <div className="rounded-3xl bg-zinc-950 border border-white/10 p-5 mb-5">
-          <p className="text-sm text-zinc-400 mb-4">
-            Send Crypto
-          </p>
+        
 
-          <select
-            value={asset}
-            onChange={(e) =>
-              setAsset(
-                e.target.value
-              )
-            }
-            className="w-full rounded-2xl bg-black p-4 mb-3"
-          >
-            <option>ETH</option>
-            <option>BNB</option>
-            <option>USDT</option>
-          </select>
-
-          <input
-            value={to}
-            onChange={(e) =>
-              setTo(
-                e.target.value
-              )
-            }
-            placeholder="Recipient Address"
-            className="w-full rounded-2xl bg-black p-4 mb-3"
-          />
-
-          <input
-            value={amount}
-            onChange={(e) =>
-              setAmount(
-                e.target.value
-              )
-            }
-            placeholder="Amount"
-            className="w-full rounded-2xl bg-black p-4 mb-3"
-          />
-
-          <p className="text-xs text-zinc-400 mb-3">
-            Send Fee:
-            {" "}
-            {SEND_FEE}%
-          </p>
-
-       <button
-  onClick={handleSend}
-  disabled={sending}
-  className="w-full rounded-2xl bg-amber-500 py-4 text-black font-bold disabled:opacity-50 disabled:cursor-not-allowed"
->
-            {sending
-              ? "Sending..."
-              : `Send ${asset}`}
-          </button>
-
-          {status && (
-            <p className="text-xs text-zinc-400 mt-3 break-all">
-              {status}
-            </p>
-          )}
-        </div>
 
         <div className="rounded-3xl bg-zinc-950 border border-white/10 p-5">
           <p className="text-sm text-zinc-400 mb-3">
