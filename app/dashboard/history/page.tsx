@@ -16,7 +16,7 @@ type WalletTx = {
   createdAt: string;
 };
 
-const STORAGE_KEY = "cryptohost_wallet_tx_history";
+const STORAGE_KEY = "cryptohost_history";
 
 function shorten(value: string, start = 6, end = 4) {
   if (!value) return "-";
@@ -193,7 +193,7 @@ const clearAll = async () => {
             </p>
           </div>
         ) : (
-          filtered.map((tx) => (
+          filtered.map((tx, index) => (
             <div
               key={tx.id}
               className="rounded-[18px] border border-white/8 bg-[#091720] p-3"

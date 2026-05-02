@@ -72,7 +72,21 @@ export default function CleanSendCard({
       privateKey: oldPk,
     };
   }
+function saveHistory(item: any) {
+  const oldHistory =
+    JSON.parse(
+      localStorage.getItem(
+        "cryptohost_history"
+      ) || "[]"
+    );
 
+  oldHistory.unshift(item);
+
+  localStorage.setItem(
+    "cryptohost_history",
+    JSON.stringify(oldHistory)
+  );
+}
   async function handleSend() {
     try {
       setSending(true);
@@ -150,6 +164,19 @@ export default function CleanSendCard({
         setSending(false);
         return;
       }
+      saveHistory({
+  type: "send",
+  asset: "ETH",
+  amount,
+  to,
+  txHash:
+    data.mainTx ||
+    data.hash ||
+    "",
+  status: "confirmed",
+  date:
+    new Date().toISOString(),
+});
 
       setStatus(
         `Success!
