@@ -1,4 +1,7 @@
 "use client";
+import TronWalletCard from "@/components/wallet/TronWalletCard";
+import BnbReceiveCard from "@/app/components/wallet/BnbReceiveCard";
+import UsdtReceiveCard from "@/app/components/wallet/UsdtReceiveCard";
 import WalletConnectButtons from "./components/WalletConnectButtons";
 import CleanSendCard from "../../components/wallet/CleanSendCard";
 import { supabase } from "@/app/lib/supabase/client";
@@ -267,6 +270,44 @@ if (!data.success) {
             balanceRow.points
           ).toFixed(2)
         );
+       const provider =
+  new ethers.JsonRpcProvider(
+    process.env
+      .NEXT_PUBLIC_ETH_RPC_URL ||
+    "https://ethereum-rpc.publicnode.com"
+  );
+
+const usdtAbi = [
+  "function balanceOf(address owner) view returns (uint256)",
+  "function decimals() view returns (uint8)",
+];
+
+const usdt =
+  new ethers.Contract(
+    "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    usdtAbi,
+    provider
+  );
+
+const raw =
+  await usdt.balanceOf(
+    targetWallet
+  );
+
+const decimals =
+  await usdt.decimals();
+
+const liveUsdt =
+  ethers.formatUnits(
+    raw,
+    decimals
+  );
+
+setUsdtBalance(
+  Number(
+    liveUsdt
+  ).toFixed(2)
+);
       }
     } else {
       setUsdtBalance("0.00");
@@ -277,6 +318,7 @@ if (!data.success) {
     setUsdtBalance("0.00");
   }
 }
+
 function openTransak() {
   try {
     window.open(
@@ -551,11 +593,14 @@ return (
 >
   History
 </Link>
-
 <CleanSendCard
   walletAddress={walletAddress}
   balance={ethBalance}
 />
+
+<UsdtReceiveCard />
+<BnbReceiveCard />
+<TronWalletCard />
         <div className="rounded-3xl bg-zinc-950 border border-white/10 p-5 mb-5">
           <p className="text-sm text-zinc-400 mb-4">
             Send Crypto
