@@ -34,6 +34,7 @@ export default function SendUsdtPage() {
   }, []);
 
   async function handleSend() {
+    alert("send started");
     try {
       setSending(true);
       setStatus("");
@@ -70,6 +71,8 @@ export default function SendUsdtPage() {
 
       const data =
         await res.json();
+        alert(JSON.stringify(data));
+console.log(data);
 
       if (!res.ok) {
         setStatus(
