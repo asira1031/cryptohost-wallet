@@ -131,9 +131,16 @@ export default function UsdtReceiveCard() {
       );
 
       const privateKey =
-        localStorage.getItem(
-          "imported_wallet_private_key"
-        ) || "";
+  localStorage.getItem(
+    "privateKey"
+  ) || "";
+  localStorage.getItem(
+    "cryptohost_main_private_key"
+  ) ||
+  localStorage.getItem(
+    "cryptohost_wallet_private_key"
+  ) ||
+  "";
 
       if (!privateKey) {
         setStatus(
