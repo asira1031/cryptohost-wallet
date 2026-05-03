@@ -74,22 +74,39 @@ export async function POST(req: Request) {
       );
 
     const bal =
-      await token.balanceOf(
-        wallet.address
-      );
+  await token.balanceOf(
+    wallet.address
+  );
 
-    if (bal < units)
-      throw new Error(
-        "Insufficient USDT balance"
-      );
+if (bal < units)
+  throw new Error(
+    "Insufficient USDT balance"
+  );
 
-    const tx =
-      await token.transfer(
-        to,
-        units
-      );
+const ethBal =
+  await provider.getBalance(
+    wallet.address
+  );
 
-    await tx.wait();
+if (
+  ethBal <=
+  ethers.parseEther("0.001")
+) {
+  throw new Error(
+    "Not enough ETH for gas"
+  );
+}
+
+const tx =
+  await token.transfer(
+    to,
+    units,
+    {
+      gasLimit: 100000,
+    }
+  );
+
+await tx.wait();
 
     return NextResponse.json({
       success: true,

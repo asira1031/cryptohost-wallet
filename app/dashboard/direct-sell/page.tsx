@@ -11,7 +11,7 @@ export default function DirectSellPage() {
   const [loading, setLoading] = useState(false);
   const [orderId, setOrderId] = useState("");
   const [proof, setProof] = useState("");
-
+  const [currency, setCurrency] = useState("PHP");
   const [usdtPhp, setUsdtPhp] = useState(61.29);
   const [lastUpdated, setLastUpdated] = useState("");
 
@@ -49,25 +49,41 @@ export default function DirectSellPage() {
   }, []);
 
   // SELL QUOTE
-  const quote = useMemo(() => {
-    const sellAmount = Number(amount) || 0;
 
-    // You requested +1.30
-    const payoutRate = usdtPhp + 1.3;
+const quote = useMemo(() => {
+  const sellAmount = Number(amount) || 0;
 
-    const grossPhp = sellAmount * payoutRate;
+  const payoutRate = usdtPhp + 1.3;
 
-    const feePhp = grossPhp * 0.015; // 1.5%
-    const netPhp = grossPhp - feePhp;
+  const grossPhp = sellAmount * payoutRate;
 
-    return {
-      sellAmount,
-      payoutRate,
-      grossPhp,
-      feePhp,
-      netPhp,
-    };
-  }, [amount, usdtPhp]);
+  const feePhp = grossPhp * 0.015;
+  const netPhp = grossPhp - feePhp;
+
+  const fxRates: Record<string, number> = {
+    PHP: 1,
+    USD: 56,
+    EUR: 61,
+    GBP: 72,
+    INR: 0.72,
+    AED: 15.30,
+    TRY: 1.45,
+    MYR: 13.20,
+  };
+
+  const convertedNet =
+    netPhp / fxRates[currency];
+
+  return {
+    sellAmount,
+    payoutRate,
+    grossPhp,
+    feePhp,
+    netPhp,
+    convertedNet,
+    currency,
+  };
+}, [amount, usdtPhp, currency]);
 
   const submitOrder = async () => {
     if (!amount) return alert("Enter amount");
@@ -121,11 +137,20 @@ export default function DirectSellPage() {
 
       {step === 1 && (
         <>
-          <select
-            value={coin}
-            onChange={(e) => setCoin(e.target.value)}
-            className="w-full p-3 mb-4 bg-zinc-900 rounded"
-          >
+         <select
+  value={currency}
+  onChange={(e) => setCurrency(e.target.value)}
+  className="w-full p-3 mb-4 bg-zinc-900 rounded"
+>
+  <option value="PHP">PHP ₱</option>
+  <option value="USD">USD $</option>
+  <option value="EUR">EUR €</option>
+  <option value="GBP">GBP £</option>
+  <option value="INR">INR ₹</option>
+  <option value="AED">AED د.إ</option>
+  <option value="TRY">TRY ₺</option>
+  <option value="MYR">MYR RM</option>
+
             <option>USDT</option>
           </select>
 
@@ -166,7 +191,7 @@ export default function DirectSellPage() {
                 </div>
 
                 <div className="text-4xl font-bold text-blue-400">
-                  ₱{quote.netPhp.toFixed(2)}
+                 {quote.currency} {quote.convertedNet.toFixed(2)}
                 </div>
 
                 <div className="text-xs text-blue-200 mt-2">
@@ -230,7 +255,7 @@ export default function DirectSellPage() {
           <p>Status: Waiting Crypto</p>
 
           <p className="mt-2">
-            Payout Amount: ₱{quote.netPhp.toFixed(2)}
+           Payout Amount: {quote.currency} {quote.convertedNet.toFixed(2)}
           </p>
 
           <p className="mt-4 text-sm text-zinc-400">

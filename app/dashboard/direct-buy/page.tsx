@@ -5,11 +5,12 @@ import { supabase } from "@/app/lib/supabase/client";
 
 export default function DirectBuyPage() {
   const [coin, setCoin] = useState("USDT");
+  const [currency, setCurrency] = useState("PHP");
   const [amount, setAmount] = useState(""); // USER INPUT = USDT
   const [paymentMethod, setPaymentMethod] = useState("");
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
-
+  
   const [usdtPhp, setUsdtPhp] = useState(61.29);
   const [lastUpdated, setLastUpdated] = useState("");
 
@@ -57,14 +58,28 @@ export default function DirectBuyPage() {
 
     // total php customer pays based on original amount
     const totalPhp = buyAmount * adjustedRate;
+    const fxRates: any = {
+  PHP: 1,
+  USD: 56,
+  EUR: 61,
+  GBP: 72,
+  INR: 0.72,
+  AED: 15.30,
+  TRY: 1.45,
+};
+
+const convertedTotal =
+  totalPhp / fxRates[currency];
 
     return {
-      buyAmount,
-      feeUsdt,
-      receive,
-      adjustedRate,
-      totalPhp,
-    };
+  buyAmount,
+  feeUsdt,
+  receive,
+  adjustedRate,
+  totalPhp,
+  convertedTotal,
+  currency,
+};
   }, [amount, usdtPhp]);
 
   const submitOrder = async () => {
@@ -109,6 +124,21 @@ export default function DirectBuyPage() {
             <option>USDT</option>
           </select>
 
+          <select
+  value={currency}
+  onChange={(e) => setCurrency(e.target.value)}
+  className="w-full p-3 mb-4 bg-zinc-900 rounded"
+>
+  <option value="PHP">PHP ₱</option>
+  <option value="USD">USD $</option>
+  <option value="EUR">EUR €</option>
+  <option value="GBP">GBP £</option>
+  <option value="INR">INR ₹</option>
+  <option value="AED">AED د.إ</option>
+  <option value="TRY">TRY ₺</option>
+  <option value="MYR">MYR ₺</option>
+</select>
+
           <input
             type="number"
             placeholder="Enter USDT Amount"
@@ -138,7 +168,9 @@ export default function DirectBuyPage() {
 
                 <div className="flex justify-between font-bold">
                   <span>Total To Pay</span>
-                  <span>₱{quote.totalPhp.toFixed(2)}</span>
+               <span>
+  {quote.currency} {Number(quote.convertedTotal || 0).toFixed(2)}
+</span>
                 </div>
 
                 <div className="text-xs text-zinc-500 text-center">
