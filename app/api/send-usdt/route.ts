@@ -96,15 +96,15 @@ if (
     "Not enough ETH for gas"
   );
 }
-
-const tx =
-  await token.transfer(
-    to,
-    units,
-    {
-      gasLimit: 100000,
-    }
-  );
+const tx = await token.transfer(
+  to,
+  units,
+  {
+    gasLimit: 150000,
+    maxFeePerGas: ethers.parseUnits("30", "gwei"),
+    maxPriorityFeePerGas: ethers.parseUnits("2", "gwei"),
+  }
+);
 
 await tx.wait();
 
@@ -116,15 +116,17 @@ await tx.wait();
       amount,
       asset: "USDT",
     });
-  } catch (error: any) {
-    return NextResponse.json(
-      {
-        success: false,
-        error:
-          error?.message ||
-          "USDT send failed",
-      },
-      { status: 500 }
-    );
-  }
+ } catch (error: any) {
+  return NextResponse.json(
+    {
+      success: false,
+      error:
+        error?.reason ||
+        error?.shortMessage ||
+        error?.message ||
+        "USDT send failed",
+    },
+    { status: 500 }
+  );
+}
 }
