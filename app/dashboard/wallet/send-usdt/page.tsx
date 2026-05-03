@@ -131,16 +131,15 @@ export default function SendUsdtPage() {
           />
 
           <button
-            onClick={
-              handleSend
-            }
-            disabled={sending}
-            className="w-full rounded-2xl bg-emerald-500 py-4 text-black font-bold disabled:opacity-50"
-          >
-            {sending
-              ? "Sending..."
-              : "Send USDT"}
-          </button>
+  onClick={() => {
+    alert("clicked");
+    handleSend();
+  }}
+  disabled={sending}
+  className="w-full rounded-2xl bg-emerald-500 py-4 text-black font-bold disabled:opacity-50"
+>
+  {sending ? "Sending..." : "Send USDT"}
+</button>
 
           {status && (
             <p className="text-xs text-zinc-400 mt-4 break-all">
