@@ -1,61 +1,104 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/app/lib/supabase/client";
 
 export default function DirectSellPage() {
   const [coin, setCoin] = useState("USDT");
-  const [amount, setAmount] = useState("");
+  const [amount, setAmount] = useState(""); // crypto amount user sells
   const [payoutMethod, setPayoutMethod] = useState("");
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [orderId, setOrderId] = useState("");
   const [proof, setProof] = useState("");
 
-  const submitOrder = async () => {
-    if (!amount) {
-      alert("Enter amount");
-      return;
-    }
+  const [usdtPhp, setUsdtPhp] = useState(61.29);
+  const [lastUpdated, setLastUpdated] = useState("");
 
-    if (!payoutMethod) {
-      alert("Choose payout method");
-      return;
-    }
+  // LIVE RATE
+  useEffect(() => {
+    const loadRates = async () => {
+      try {
+        const res = await fetch(
+          "https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=php",
+          { cache: "no-store" }
+        );
+
+        const data = await res.json();
+
+        if (data?.tether?.php) {
+          setUsdtPhp(Number(data.tether.php));
+        }
+
+        setLastUpdated(
+          new Date().toLocaleTimeString("en-PH", {
+            hour: "2-digit",
+            minute: "2-digit",
+            second: "2-digit",
+          })
+        );
+      } catch (error) {
+        console.log(error);
+      }
+    };
+
+    loadRates();
+    const timer = setInterval(loadRates, 10000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // SELL QUOTE
+  const quote = useMemo(() => {
+    const sellAmount = Number(amount) || 0;
+
+    // You requested +1.30
+    const payoutRate = usdtPhp + 1.3;
+
+    const grossPhp = sellAmount * payoutRate;
+
+    const feePhp = grossPhp * 0.015; // 1.5%
+    const netPhp = grossPhp - feePhp;
+
+    return {
+      sellAmount,
+      payoutRate,
+      grossPhp,
+      feePhp,
+      netPhp,
+    };
+  }, [amount, usdtPhp]);
+
+  const submitOrder = async () => {
+    if (!amount) return alert("Enter amount");
+    if (!payoutMethod) return alert("Choose payout method");
 
     setLoading(true);
 
     const { data, error } = await supabase
       .from("orders")
       .insert([
-        {
-          order_type: "SELL",
-          coin,
-          amount,
-          status: "Waiting Crypto",
-          proof: payoutMethod,
-        },
-      ])
+ {
+   order_type: "SELL",
+   coin,
+   amount: quote.sellAmount,
+   status: "Waiting Crypto",
+   proof: payoutMethod
+ }
+])
       .select()
       .single();
 
     setLoading(false);
 
-    if (error) {
-      alert(error.message);
-      console.log(error);
-      return;
-    }
+    if (error) return alert(error.message);
 
     setOrderId(data.id);
     setStep(3);
   };
 
   const submitHash = async () => {
-    if (!proof) {
-      alert("Enter TX Hash");
-      return;
-    }
+    if (!proof) return alert("Enter TX Hash");
 
     const { error } = await supabase
       .from("orders")
@@ -65,11 +108,7 @@ export default function DirectSellPage() {
       })
       .eq("id", orderId);
 
-    if (error) {
-      alert(error.message);
-      console.log(error);
-      return;
-    }
+    if (error) return alert(error.message);
 
     alert("TX Hash submitted!");
   };
@@ -88,17 +127,54 @@ export default function DirectSellPage() {
             className="w-full p-3 mb-4 bg-zinc-900 rounded"
           >
             <option>USDT</option>
-            <option>BTC</option>
-            <option>ETH</option>
           </select>
 
           <input
             type="number"
-            placeholder="Enter Amount"
+            placeholder="Enter USDT Amount"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
             className="w-full p-3 mb-4 bg-zinc-900 rounded"
           />
+
+          {Number(amount) > 0 && (
+            <>
+              <div className="bg-zinc-900 rounded p-4 mb-4 space-y-3">
+                <div className="flex justify-between">
+                  <span>You Sell</span>
+                  <span>{quote.sellAmount.toFixed(2)} USDT</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span>Today's Rate</span>
+                  <span>₱{quote.payoutRate.toFixed(2)}</span>
+                </div>
+
+                <div className="flex justify-between">
+                  <span>Service Fee</span>
+                  <span>₱{quote.feePhp.toFixed(2)}</span>
+                </div>
+
+                <div className="text-xs text-zinc-500 text-center">
+                  Updated: {lastUpdated}
+                </div>
+              </div>
+
+              <div className="bg-blue-600/10 border border-blue-500 rounded p-4 mb-4 text-center">
+                <div className="text-sm text-blue-300 mb-1">
+                  You Will Receive
+                </div>
+
+                <div className="text-4xl font-bold text-blue-400">
+                  ₱{quote.netPhp.toFixed(2)}
+                </div>
+
+                <div className="text-xs text-blue-200 mt-2">
+                  Net payout after fee
+                </div>
+              </div>
+            </>
+          )}
 
           <button
             onClick={() => setStep(2)}
@@ -153,14 +229,13 @@ export default function DirectSellPage() {
           <p>Payout Method: {payoutMethod}</p>
           <p>Status: Waiting Crypto</p>
 
-          <p className="mt-4 text-sm text-zinc-400">
-            Send your selected crypto to the wallet below.
-            Once confirmed, payout will be sent to{" "}
-            {payoutMethod}.
+          <p className="mt-2">
+            Payout Amount: ₱{quote.netPhp.toFixed(2)}
           </p>
 
-          <p className="mt-3 text-yellow-400 text-sm">
-            Supported Networks: BEP20 / ERC20
+          <p className="mt-4 text-sm text-zinc-400">
+            Send your crypto to the wallet below.
+            After confirmation, payout will be sent.
           </p>
 
           <p className="mt-4 text-green-400 break-all font-bold">

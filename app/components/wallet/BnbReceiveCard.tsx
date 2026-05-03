@@ -169,7 +169,7 @@ const [amount, setAmount] =
     type="button"
     className="w-full rounded-2xl bg-yellow-400 py-3 text-sm font-bold text-black"
   >
-    Coming Soon
+    Send BNB
   </button>
 </div>
       {status && (

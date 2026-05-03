@@ -164,7 +164,7 @@ const [amount, setAmount] =
             : "Refresh"}
         </button>
       </div>
-<div className="mt-4 space-y-3 relative opacity-60 pointer-events-none">
+<div className="mt-4 space-y-3">
     
   <input
     type="text"
@@ -191,11 +191,11 @@ const [amount, setAmount] =
   />
 
   <button
-    type="button"
-    className="w-full rounded-2xl bg-emerald-500 py-3 text-sm font-bold text-black"
-  >
-    Coming Soon
-  </button>
+  type="button"
+  className="w-full rounded-2xl bg-emerald-500 py-3 text-sm font-bold text-black"
+>
+  Send USDT
+</button>
 </div>
       {status && (
         <p className="text-xs text-zinc-400 mt-4">
