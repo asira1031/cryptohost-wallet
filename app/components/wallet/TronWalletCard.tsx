@@ -216,7 +216,7 @@ export default function TronWalletCard() {
                 type="button"
                 className="w-full rounded-xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-black"
               >
-                Send USDT (TRC20)
+                coming soon
               </button>
             </div>
           </div>

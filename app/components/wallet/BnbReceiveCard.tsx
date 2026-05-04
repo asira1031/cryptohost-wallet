@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { ethers } from "ethers";
-
+import { addHistoryItem } from "../../lib/wallet/history";
 export default function BnbReceiveCard() {
   const [walletAddress, setWalletAddress] =
     useState("");
@@ -160,10 +160,25 @@ export default function BnbReceiveCard() {
         return;
       }
 
-      setStatus(
-        "Success: " +
-          data.hash
-      );
+      addHistoryItem({
+  hash: data.hash,
+  network: "bsc",
+  type: "send",
+  assetSymbol: "BNB",
+  amount: amount,
+  to: recipient,
+  from: walletAddress,
+  status: "confirmed",
+  timestamp: Date.now(),
+  explorerUrl:
+    "https://bscscan.com/tx/" +
+    data.hash,
+});
+
+setStatus(
+  "Success: " +
+  data.hash
+);
 
       setRecipient("");
       setAmount("");
