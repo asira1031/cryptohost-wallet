@@ -1,74 +1,42 @@
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { supabase } from "@/app/lib/supabase/client";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
-
-const filePath = path.join(process.cwd(), "data", "users.json");
-
-// read file safely
-function readUsers() {
-  try {
-    const data = fs.readFileSync(filePath, "utf-8");
-    return JSON.parse(data);
-  } catch {
-    return [];
-  }
-}
-
-// write file safely
-function writeUsers(data: any) {
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
-}
-
-// 👉 SAVE USER
 export async function POST(req: Request) {
   try {
-    const { wallet, referrer } = await req.json();
+    const { wallet, referrer, user_id } = await req.json();
 
-    if (!wallet) {
-      return NextResponse.json(
-        { error: "Wallet required" },
-        { status: 400 }
-      );
+    const { error } = await supabase.from("users").insert([
+      {
+        wallet,
+        referrer,
+        user_id,
+      },
+    ]);
+
+    if (error) {
+      console.error("SUPABASE INSERT ERROR:", error);
+      throw error;
     }
 
-    const users = readUsers();
-
-    // prevent duplicates
-    const exists = users.find((u: any) => u.wallet === wallet);
-    if (exists) {
-      return NextResponse.json({
-        success: true,
-        message: "User already exists",
-      });
-    }
-
-    const newUser = {
-      wallet,
-      referrer: referrer || null,
-      createdAt: new Date().toISOString(),
-    };
-
-    users.push(newUser);
-    writeUsers(users);
-
-    return NextResponse.json({
-      success: true,
-      user: newUser,
+    return new Response(JSON.stringify({ success: true }), {
+      status: 200,
     });
-
-  } catch (err: any) {
-    return NextResponse.json(
-      { error: err.message || "Save failed" },
-      { status: 500 }
-    );
+  } catch (err) {
+    return new Response(JSON.stringify({ error: "fail" }), {
+      status: 500,
+    });
   }
 }
 
-// 👉 GET USERS (for dashboard later)
 export async function GET() {
-  const users = readUsers();
-  return NextResponse.json({ users });
+  const { data, error } = await supabase
+    .from("users")
+    .select("*");
+
+  if (error) {
+    console.error("SUPABASE FETCH ERROR:", error);
+    return NextResponse.json({ users: [] });
+  }
+
+  return NextResponse.json({ users: data });
 }

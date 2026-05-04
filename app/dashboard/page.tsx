@@ -6,36 +6,50 @@ import { useEffect } from "react";
 export default function DashboardPage() {
   const router = useRouter();
 
-  // 🔥 SAVE USER (added safely, no UI changes)
-  useEffect(() => {
-    async function saveUser() {
-      try {
-        const wallet =
-          localStorage.getItem("evm_address") || "";
+  // 🔥 SAVE USER (fixed + safe)
+ useEffect(() => {
+  async function saveUser() {
+    try {
+      const alreadySaved = localStorage.getItem("user_saved");
+      if (alreadySaved === "true") return;
 
-        const referrer =
-          localStorage.getItem("referrer") || null;
+      let wallet = localStorage.getItem("evm_address");
 
-        if (!wallet) return;
+      if (!wallet) {
+        wallet = localStorage.getItem("user_id");
 
-        await fetch("/api/users", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            wallet,
-            referrer,
-          }),
-        });
-      } catch (err) {
-        console.error("Save user failed");
+        if (!wallet) {
+          wallet =
+            "USER-" + Math.random().toString(36).slice(2, 8);
+          localStorage.setItem("user_id", wallet);
+        }
       }
+
+      const referrer =
+        localStorage.getItem("referrer") || null;
+
+      console.log("INSERTING:", wallet, referrer);
+
+      await fetch("/api/users", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+       body: JSON.stringify({
+  wallet,
+  referrer,
+  user_id: wallet, // same for now
+})
+      });
+
+      localStorage.setItem("user_saved", "true");
+    } catch (err) {
+      console.error("Save user failed", err);
     }
+  }
 
-    saveUser();
-  }, []);
-
+  saveUser();
+}, []);
   return (
     <main className="min-h-screen bg-black text-white flex items-center justify-center p-6">
       <section className="w-full max-w-md rounded-3xl border border-white/10 bg-[#101010] p-6">
