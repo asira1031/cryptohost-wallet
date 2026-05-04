@@ -1,4 +1,5 @@
 "use client";
+import useSaveUser from "@/app/hooks/useSaveUser";
 import AgentP2PCard from "@/app/components/wallet/AgentP2PCard";
 import BnbReceiveCard from "@/app/components/wallet/BnbReceiveCard";
 import UsdtReceiveCard from "@/app/components/wallet/UsdtReceiveCard";
@@ -18,6 +19,7 @@ import {
 } from "wagmi";
 export default function DashboardPage() {
   const router = useRouter();
+  useSaveUser();
 
   
   const { address, isConnected } = useAccount();
@@ -101,6 +103,7 @@ useEffect(() => {
 async function loadWallet() {
   try {
     const savedWallet = loadEvmWallet();
+    
 
     const targetWallet =
       savedWallet?.address ||

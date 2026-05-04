@@ -1,9 +1,40 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function DashboardPage() {
   const router = useRouter();
+
+  // 🔥 SAVE USER (added safely, no UI changes)
+  useEffect(() => {
+    async function saveUser() {
+      try {
+        const wallet =
+          localStorage.getItem("evm_address") || "";
+
+        const referrer =
+          localStorage.getItem("referrer") || null;
+
+        if (!wallet) return;
+
+        await fetch("/api/users", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            wallet,
+            referrer,
+          }),
+        });
+      } catch (err) {
+        console.error("Save user failed");
+      }
+    }
+
+    saveUser();
+  }, []);
 
   return (
     <main className="min-h-screen bg-black text-white flex items-center justify-center p-6">
