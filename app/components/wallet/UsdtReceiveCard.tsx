@@ -1,5 +1,5 @@
 "use client";
-
+import { addHistoryItem } from "../../lib/wallet/history";
 import { useEffect, useState } from "react";
 import { ethers } from "ethers";
 
@@ -192,11 +192,20 @@ export default function UsdtReceiveCard() {
         );
         return;
       }
-
-      setStatus(
-        "Success: " +
-          data.hash
-      );
+addHistoryItem({
+  hash: data.hash,
+  network: "ethereum",
+  type: "send",
+  assetSymbol: "USDT",
+  amount: amount,
+  to: recipient,
+  from: walletAddress,
+  status: "confirmed",
+  timestamp: Date.now(),
+  explorerUrl:
+    "https://etherscan.io/tx/" +
+    data.hash,
+});
 
       setRecipient("");
       setAmount("");

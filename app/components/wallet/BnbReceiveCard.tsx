@@ -15,11 +15,12 @@ export default function BnbReceiveCard() {
 
   const [status, setStatus] =
     useState("");
-    const [recipient, setRecipient] =
-  useState("");
 
-const [amount, setAmount] =
-  useState("");
+  const [recipient, setRecipient] =
+    useState("");
+
+  const [amount, setAmount] =
+    useState("");
 
   useEffect(() => {
     loadWallet();
@@ -49,7 +50,9 @@ const [amount, setAmount] =
   ) {
     try {
       setLoading(true);
-      setStatus("");
+      setStatus(
+        "Refreshing BNB..."
+      );
 
       const rpc =
         process.env
@@ -96,6 +99,87 @@ const [amount, setAmount] =
     );
   }
 
+  async function handleSendBnb() {
+    try {
+      setLoading(true);
+      setStatus("Sending BNB...");
+
+      const privateKey =
+        localStorage.getItem(
+          "privateKey"
+        ) || "";
+
+      if (!privateKey) {
+        setStatus(
+          "No wallet key found."
+        );
+        return;
+      }
+
+      if (!recipient) {
+        setStatus(
+          "Enter recipient."
+        );
+        return;
+      }
+
+      if (
+        !amount ||
+        Number(amount) <= 0
+      ) {
+        setStatus(
+          "Enter valid amount."
+        );
+        return;
+      }
+
+      const res = await fetch(
+        "/api/send-bnb",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            to: recipient,
+            amount,
+            privateKey,
+          }),
+        }
+      );
+
+      const data =
+        await res.json();
+
+      if (!res.ok) {
+        setStatus(
+          data.error ||
+            "Send failed."
+        );
+        return;
+      }
+
+      setStatus(
+        "Success: " +
+          data.hash
+      );
+
+      setRecipient("");
+      setAmount("");
+
+      await fetchBnb(
+        walletAddress
+      );
+    } catch {
+      setStatus(
+        "Request failed."
+      );
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="rounded-3xl bg-zinc-950 border border-white/10 p-5 mt-5">
       <p className="text-sm text-zinc-400 mb-2">
@@ -140,40 +224,48 @@ const [amount, setAmount] =
             : "Refresh"}
         </button>
       </div>
-<div className="mt-4 space-y-3">
-  <input
-    type="text"
-    value={recipient}
-    onChange={(e) =>
-      setRecipient(
-        e.target.value
-      )
-    }
-    placeholder="Recipient Address"
-    className="w-full rounded-2xl bg-zinc-900 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
-  />
 
-  <input
-    type="text"
-    value={amount}
-    onChange={(e) =>
-      setAmount(
-        e.target.value
-      )
-    }
-    placeholder="Amount BNB"
-    className="w-full rounded-2xl bg-zinc-900 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
-  />
+      <div className="mt-4 space-y-3">
+        <input
+          type="text"
+          value={recipient}
+          onChange={(e) =>
+            setRecipient(
+              e.target.value
+            )
+          }
+          placeholder="Recipient Address"
+          className="w-full rounded-2xl bg-zinc-900 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
+        />
 
-  <button
-    type="button"
-    className="w-full rounded-2xl bg-yellow-400 py-3 text-sm font-bold text-black"
-  >
-    Send BNB
-  </button>
-</div>
+        <input
+          type="text"
+          value={amount}
+          onChange={(e) =>
+            setAmount(
+              e.target.value
+            )
+          }
+          placeholder="Amount BNB"
+          className="w-full rounded-2xl bg-zinc-900 border border-white/10 px-4 py-3 text-sm text-white placeholder:text-zinc-500"
+        />
+
+        <button
+          type="button"
+          onClick={
+            handleSendBnb
+          }
+          disabled={loading}
+          className="w-full rounded-2xl bg-yellow-400 py-3 text-sm font-bold text-black disabled:opacity-50"
+        >
+          {loading
+            ? "Sending..."
+            : "Send BNB"}
+        </button>
+      </div>
+
       {status && (
-        <p className="text-xs text-zinc-400 mt-4">
+        <p className="text-xs text-zinc-400 mt-4 break-all">
           {status}
         </p>
       )}

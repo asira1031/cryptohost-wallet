@@ -19,6 +19,7 @@ export async function POST(req: Request) {
     };
 
     const rpc =
+      process.env.RPC_URL_BSC ||
       process.env
         .NEXT_PUBLIC_BSC_RPC_URL ||
       "https://bsc-dataseed.binance.org";
@@ -67,10 +68,20 @@ export async function POST(req: Request) {
         "Insufficient BNB balance"
       );
 
+    const feeData =
+      await provider.getFeeData();
+
     const tx =
       await wallet.sendTransaction({
         to,
         value,
+        gasLimit: 21000,
+        gasPrice:
+          feeData.gasPrice ||
+          ethers.parseUnits(
+            "3",
+            "gwei"
+          ),
       });
 
     await tx.wait();
@@ -88,6 +99,8 @@ export async function POST(req: Request) {
       {
         success: false,
         error:
+          error?.reason ||
+          error?.shortMessage ||
           error?.message ||
           "BNB send failed",
       },
