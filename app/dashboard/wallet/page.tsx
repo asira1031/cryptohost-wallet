@@ -1,5 +1,5 @@
 "use client";
-
+import AgentP2PCard from "@/app/components/wallet/AgentP2PCard";
 import BnbReceiveCard from "@/app/components/wallet/BnbReceiveCard";
 import UsdtReceiveCard from "@/app/components/wallet/UsdtReceiveCard";
 import WalletConnectButtons from "./components/WalletConnectButtons";
@@ -600,7 +600,7 @@ return (
 
 <UsdtReceiveCard />
 <BnbReceiveCard />
-
+<AgentP2PCard />
         
 
 
