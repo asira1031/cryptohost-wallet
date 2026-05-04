@@ -1,247 +1,150 @@
 "use client";
-import { generateTronWallet } from "@/app/lib/tron/wallet";
+
 import { useEffect, useState } from "react";
-import {
-  getStoredTronWallet,
-  saveTronWallet,
-  clearStoredTronWallet,
-  type StoredTronWallet,
-} from "@/app/lib/tron/storage";
 
 export default function TronWalletCard() {
-  const [wallet, setWallet] = useState<StoredTronWallet | null>(null);
-  const [trxBalance, setTrxBalance] = useState<number | null>(null);
-  const [usdtBalance, setUsdtBalance] = useState<number | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const [address, setAddress] = useState("");
+  const [status, setStatus] = useState("");
 
-  async function loadBalances(address: string) {
-  try {
-    setLoading(true);
+  const [recipient, setRecipient] = useState("");
+  const [amount, setAmount] = useState("");
+  const [sending, setSending] = useState(false);
 
-    // clear previous states (clean UI)
-    setError("");
-    setSuccess("");
+  useEffect(() => {
+    const saved = "TYuHJPv4xVLaSBEj4RUNViNCLUVqJVvWaQ";
 
-    // fallback (safe mode / no API yet)
-    setTrxBalance(0);
-    setUsdtBalance(0);
-
-    // optional: show clean status ONLY if may address
-    if (address) {
-      setSuccess("Wallet ready.");
+    if (!saved) {
+      setStatus("No TRON wallet found.");
+      return;
     }
 
-  } catch (err) {
-    // minimal clean error (no technical noise)
-    setError("Unable to load balance.");
-  } finally {
-    setLoading(false);
+    setAddress(saved);
+  }, []);
+
+  async function copy() {
+    if (!address) return;
+
+    await navigator.clipboard.writeText(address);
+    setStatus("Copied.");
   }
-}
 
-  async function handleCreateWallet() {
+  async function handleSendTron() {
     try {
-      setCreating(true);
-      setError("");
-      setSuccess("");
+      setSending(true);
+      setStatus("Sending...");
 
-      const existing = getStoredTronWallet();
-      if (existing) {
-        setWallet(existing);
-        await loadBalances(existing.address);
-        setSuccess("Existing TRON wallet loaded.");
+      const privateKey =
+        localStorage.getItem("privateKey") || "";
+
+      if (!privateKey) {
+        setStatus("No wallet key.");
         return;
       }
 
-      const newWallet = await generateTronWallet();
+      if (!recipient) {
+        setStatus("Enter recipient.");
+        return;
+      }
 
-      const stored: StoredTronWallet = {
-        address: newWallet.address,
-        hexAddress: newWallet.hexAddress,
-        privateKey: newWallet.privateKey,
-        publicKey: newWallet.publicKey,
-      };
+      if (!amount || Number(amount) <= 0) {
+        setStatus("Enter valid amount.");
+        return;
+      }
 
-      saveTronWallet(stored);
-      setWallet(stored);
-      await loadBalances(stored.address);
-      setSuccess("TRON wallet created successfully.");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create wallet");
-    } finally {
-      setCreating(false);
-    }
-  }
+      const res = await fetch(
+        "/api/tron/send-tron",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            to: recipient,
+            amount,
+            privateKey,
+          }),
+        }
+      );
 
-  function handleRemoveWallet() {
-    clearStoredTronWallet();
-    setWallet(null);
-    setTrxBalance(null);
-    setUsdtBalance(null);
-    setError("");
-    setSuccess("");
-  }
+      const data = await res.json();
 
-  async function handleRefresh() {
-    if (!wallet?.address) return;
-    await loadBalances(wallet.address);
-  }
+      if (!res.ok) {
+        setStatus(
+          data.error || "Send failed"
+        );
+        return;
+      }
 
-  async function copyToClipboard(value: string, label: string) {
-    try {
-      await navigator.clipboard.writeText(value);
-      setSuccess(`${label} copied.`);
-      setError("");
+      setStatus("Success!");
+
+      setRecipient("");
+      setAmount("");
+
     } catch {
-      setError(`Failed to copy ${label.toLowerCase()}.`);
+      setStatus("Request failed.");
+    } finally {
+      setSending(false);
     }
   }
-
-  useEffect(() => {
-    const existing = getStoredTronWallet();
-
-    if (existing) {
-      setWallet(existing);
-      void loadBalances(existing.address);
-    }
-  }, []);
 
   return (
-    <div className="rounded-3xl border border-white/10 bg-white/5 p-5 text-white">
-      <div className="mb-4 flex items-center justify-between gap-3">
-        <h2 className="text-xl font-semibold">TRON Wallet (TRC20)</h2>
+    <div className="rounded-3xl bg-zinc-950 border border-white/10 p-5 mt-5">
+      {/* RECEIVE */}
+      <p className="text-sm text-zinc-400 mb-2">
+        TRON Wallet
+      </p>
 
-        <div className="flex gap-2">
-          {!wallet ? (
-            <button
-              type="button"
-              onClick={handleCreateWallet}
-              disabled={creating}
-              className="rounded-xl border border-cyan-400/25 bg-cyan-500/20 px-3 py-2 text-xs font-medium text-cyan-100 disabled:opacity-60"
-            >
-              {creating ? "Creating..." : "Create TRON Wallet"}
-            </button>
-          ) : (
-            <>
-              <button
-                type="button"
-                onClick={handleRefresh}
-                disabled={loading}
-                className="rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium text-white disabled:opacity-60"
-              >
-                {loading ? "Refreshing..." : "Refresh"}
-              </button>
+      <p className="text-xs break-all mb-4">
+        {address || "No wallet"}
+      </p>
 
-              <button
-                type="button"
-                onClick={handleRemoveWallet}
-                className="rounded-xl border border-red-400/25 bg-red-500/20 px-3 py-2 text-xs font-medium text-red-100"
-              >
-                Remove
-              </button>
-            </>
-          )}
-        </div>
+      <button
+        onClick={copy}
+        className="w-full rounded-2xl bg-cyan-500 py-3 text-black font-bold mb-4"
+      >
+        Copy Address
+      </button>
+
+      {/* SEND */}
+      <div className="space-y-3">
+        <input
+          type="text"
+          value={recipient}
+          onChange={(e) =>
+            setRecipient(e.target.value)
+          }
+          placeholder="Recipient Address"
+          className="w-full rounded-2xl bg-zinc-900 border border-white/10 px-4 py-3 text-sm text-white"
+        />
+
+        <input
+          type="text"
+          value={amount}
+          onChange={(e) =>
+            setAmount(e.target.value)
+          }
+          placeholder="Amount (USDT TRC20)"
+          className="w-full rounded-2xl bg-zinc-900 border border-white/10 px-4 py-3 text-sm text-white"
+        />
+
+        <button
+          onClick={handleSendTron}
+          disabled={sending}
+          className="w-full rounded-2xl bg-cyan-500 py-3 text-sm font-bold text-black disabled:opacity-50"
+        >
+          {sending
+            ? "Sending..."
+            : "Send TRON"}
+        </button>
       </div>
 
-      {wallet ? (
-        <div className="space-y-3">
-          <div className="rounded-2xl border border-white/10 bg-[#06131b] p-3">
-            <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">
-              TRON Address
-            </p>
-            <p className="mt-2 break-all text-sm text-white/85">
-              {wallet.address}
-            </p>
-
-            <button
-              type="button"
-              onClick={() => copyToClipboard(wallet.address, "Address")}
-              className="mt-3 rounded-xl border border-white/10 bg-white/10 px-3 py-2 text-xs font-medium text-white"
-            >
-              Copy Address
-          </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div className="rounded-2xl border border-white/10 bg-[#06131b] p-3">
-              <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">
-                TRX Balance
-              </p>
-              <p className="mt-2 text-lg font-semibold text-white">
-                {trxBalance !== null ? trxBalance : "--"}
-              </p>
-            </div>
-
-            <div className="rounded-2xl border border-white/10 bg-[#06131b] p-3">
-              <p className="text-[10px] uppercase tracking-[0.22em] text-white/45">
-                USDT (TRC20)
-              </p>
-              <p className="mt-2 text-lg font-semibold text-white">
-                {usdtBalance !== null ? usdtBalance : "--"}
-              </p>
-            </div>
-          </div>
-
-          <div className="rounded-2xl border border-white/10 bg-[#06131b] p-4">
-            <p className="mb-3 text-sm font-semibold text-white">
-              TRON Send (Coming Soon)
-            </p>
-
-            <div className="space-y-3">
-              <select
-                defaultValue="TRX"
-                className="w-full rounded-xl border border-white/10 bg-black px-3 py-3 text-sm text-white"
-              >
-                <option value="TRX">TRX</option>
-                <option value="USDT">USDT (TRC20)</option>
-              </select>
-
-              <input
-                type="text"
-                placeholder="Recipient Address"
-                className="w-full rounded-xl border border-white/10 bg-black px-3 py-3 text-sm text-white placeholder:text-white/30"
-              />
-
-              <input
-                type="text"
-                placeholder="Amount"
-                className="w-full rounded-xl border border-white/10 bg-black px-3 py-3 text-sm text-white placeholder:text-white/30"
-              />
-
-              <button
-                type="button"
-                className="w-full rounded-xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-black"
-              >
-                coming soon
-              </button>
-            </div>
-          </div>
-          
-
-        </div>
-      ) : (
-        <div className="rounded-2xl border border-white/10 bg-[#06131b] p-4 text-sm text-white/75">
-          No TRON wallet found yet. Click{" "}
-          <span className="font-semibold text-white">Create TRON Wallet</span>{" "}
-          to generate your TRON wallet.
-        </div>
+      {/* STATUS */}
+      {status && (
+        <p className="text-xs text-zinc-400 mt-4 break-all">
+          {status}
+        </p>
       )}
-
-      {success ? (
-        <div className="mt-4 rounded-2xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">
-          {success}
-        </div>
-      ) : null}
-
-      {error ? (
-        <div className="mt-4 rounded-2xl border border-red-500/25 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-          {error}
-        </div>
-      ) : null}
     </div>
   );
 }

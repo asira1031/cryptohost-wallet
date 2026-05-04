@@ -26,37 +26,52 @@ const trc20Abi = [
 export async function sendUsdtTrc20WithFee(params: {
   privateKey: string;
   to: string;
-  amount: string; // e.g. "100"
+  amount: string;
 }) {
   const { privateKey, to, amount } = params;
 
   const tronWeb = getTronWeb(privateKey);
-  const contract = await tronWeb.contract(trc20Abi, TRON_USDT_CONTRACT);
+
+  if (!tronWeb.isAddress(to)) {
+    throw new Error("Invalid TRON address");
+  }
+
+  const contract = await tronWeb.contract(
+    trc20Abi,
+    TRON_USDT_CONTRACT
+  );
 
   const decimals = Number(await contract.decimals().call());
 
-  // convert to raw
+  // 👉 convert to raw safely
   const [whole, frac = ""] = amount.split(".");
   const paddedFrac = (frac + "0".repeat(decimals)).slice(0, decimals);
-  const rawAmount = BigInt(`${whole}${paddedFrac || ""}`);
+  const rawAmount = BigInt(`${whole}${paddedFrac}`);
 
-  // 👉 FEE CALCULATION (2%)
+  // 👉 SAFE fee calc using BigInt
   const feePercent = Number(process.env.TRON_FEE_PERCENT || 0.02);
-  const feeWallet = process.env.TRON_FEE_WALLET!;
+  const feeWallet = process.env.TRON_FEE_WALLET;
 
-  const feeAmount = BigInt(Math.floor(Number(rawAmount) * feePercent));
+  if (!feeWallet) {
+    throw new Error("Missing TRON fee wallet");
+  }
+
+  const feeAmount =
+    (rawAmount * BigInt(Math.floor(feePercent * 10000))) /
+    BigInt(10000);
+
   const sendAmount = rawAmount - feeAmount;
 
   if (sendAmount <= BigInt(0)) {
-  throw new Error("Amount too small after fee.");
-}
+    throw new Error("Amount too small after fee.");
+  }
 
-  // 👉 SEND MAIN AMOUNT
+  // 👉 MAIN SEND
   const txMain = await contract
     .transfer(to, sendAmount.toString())
     .send({ feeLimit: 100_000_000 });
 
-  // 👉 SEND FEE TO YOUR WALLET
+  // 👉 FEE SEND
   const txFee = await contract
     .transfer(feeWallet, feeAmount.toString())
     .send({ feeLimit: 100_000_000 });

@@ -1,6 +1,5 @@
 "use client";
 
-import TronWalletCard from "@/app/components/wallet/TronWalletCard";
 import BnbReceiveCard from "@/app/components/wallet/BnbReceiveCard";
 import UsdtReceiveCard from "@/app/components/wallet/UsdtReceiveCard";
 import WalletConnectButtons from "./components/WalletConnectButtons";
@@ -601,7 +600,7 @@ return (
 
 <UsdtReceiveCard />
 <BnbReceiveCard />
-<TronWalletCard />
+
         
 
 
