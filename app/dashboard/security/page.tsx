@@ -239,24 +239,19 @@ export default function SecurityPage() {
       setWalletPassword(
         ""
       );
-   } catch (error) {
-  console.log(error);
+ } catch (error) {
+ console.log(error);
 
   setMessage(
     "Unable to reveal backup right now."
   );
 } finally {
-      setUnlocking(
-        false
-      );
-    }
-  }
+  setUnlocking(false);
+}
+}
 
-  function handleHideSecrets() {
-    setShowSecrets(
-      false
-    );
-
+function handleHideSecrets() {
+  setShowSecrets(false);
     setPrivateKey("");
 
     setMnemonic("");
