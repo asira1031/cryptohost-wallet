@@ -205,6 +205,7 @@ export default function SecurityPage() {
   async function handleRevealSecrets() {
     try {
       setUnlocking(true);
+      setMessage("");
 
       if (
         !walletPassword.trim()
@@ -238,11 +239,13 @@ export default function SecurityPage() {
       setWalletPassword(
         ""
       );
-    } catch {
-      setMessage(
-        "Wrong wallet password."
-      );
-    } finally {
+   } catch (error) {
+  console.log(error);
+
+  setMessage(
+    "Unable to reveal backup right now."
+  );
+} finally {
       setUnlocking(
         false
       );
