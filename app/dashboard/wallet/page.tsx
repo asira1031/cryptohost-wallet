@@ -111,15 +111,33 @@ async function loadWallet() {
       localStorage.getItem("cryptohost_main_wallet") ||
       "";
 
-    if (!targetWallet) {
-  setWalletAddress("");
+   if (!targetWallet) {
+  const newWallet =
+    ethers.Wallet.createRandom();
+
+  localStorage.setItem(
+    "cryptowallet_main_wallet",
+    newWallet.address
+  );
+
+  localStorage.setItem(
+    "privateKey",
+    newWallet.privateKey
+  );
+
+  localStorage.setItem(
+    "active_wallet",
+    "main"
+  );
+
+  setWalletAddress(newWallet.address);
   setEthBalance("0.000000");
   setBnbBalance("0.000000");
   setUsdtBalance("0.00");
 
- 
   return;
 }
+
 
     const res = await fetch(
       `/api/debug-wallet?address=${targetWallet}`
