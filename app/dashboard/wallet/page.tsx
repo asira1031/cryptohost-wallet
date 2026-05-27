@@ -117,7 +117,7 @@ async function loadWallet() {
   setBnbBalance("0.000000");
   setUsdtBalance("0.00");
 
-  router.push("/dashboard/security");
+ 
   return;
 }
 
