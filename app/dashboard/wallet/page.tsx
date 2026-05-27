@@ -104,12 +104,11 @@ async function loadWallet() {
   try {
     const savedWallet = loadEvmWallet();
     
-
-    const targetWallet =
-      savedWallet?.address ||
-      localStorage.getItem("imported_wallet_address") ||
-      localStorage.getItem("cryptohost_main_wallet") ||
-      "";
+const targetWallet =
+  savedWallet?.address ||
+  localStorage.getItem("imported_wallet_address") ||
+  localStorage.getItem("cryptowallet_main_wallet") ||
+  "";
 
    if (!targetWallet) {
   const newWallet =
